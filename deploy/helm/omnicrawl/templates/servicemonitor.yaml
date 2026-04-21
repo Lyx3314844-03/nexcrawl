@@ -1,0 +1,26 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "omnicrawl.fullname" . }}
+  labels:
+    {{- include "omnicrawl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+  {{- with .Values.metrics.serviceMonitor.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "omnicrawl.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval | default "15s" }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout | default "5s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,62 @@
+{
+  "name": "nexcrawl",
+  "version": "1.2.0",
+  "type": "module",
+  "description": "The Ultimate Web/App Intelligence & Data Extraction Framework. Built-in AI reasoning, native mobile automation, binary protocol reverse engineering, and advanced anti-bot stealth.",
+  "bin": {
+    "nexcrawl": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js serve",
+    "run:demo": "node src/cli.js run examples/demo.workflow.json",
+    "test": "node --test-force-exit --test",
+    "test:reverse": "node --test-force-exit --test tests/reverse/*.test.js",
+    "lint": "node --check src/api/*.js src/runtime/*.js",
+    "bench": "node src/runtime/benchmark.js",
+    "docker": "docker build -t nexcrawl ."
+  },
+  "dependencies": {
+    "@babel/generator": "^7.29.1",
+    "@babel/parser": "^7.29.2",
+    "@babel/traverse": "^7.29.0",
+    "@babel/types": "^7.29.0",
+    "cheerio": "^1.2.0",
+    "chrome-remote-interface": "^0.34.0",
+    "crypto-js": "^4.2.0",
+    "curlconverter": "^4.12.0",
+    "esprima": "^4.0.1",
+    "estraverse": "^5.3.0",
+    "express": "^5.1.0",
+    "https-proxy-agent": "^7.0.6",
+    "ioredis": "^5.4.1",
+    "jsdom": "^29.0.1",
+    "node-imap": "^0.9.6",
+    "patchright": "^1.52.5",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "playwright": "^1.52.0",
+    "playwright-core": "^1.52.0",
+    "puppeteer": "^24.40.0",
+    "puppeteer-core": "^24.40.0",
+    "sm-crypto": "^0.4.0",
+    "socks-proxy-agent": "^8.0.0",
+    "ws": "^7.5.10",
+    "zod": "^3.24.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lyx3314844-03/nexcrawl.git"
+  },
+  "homepage": "https://github.com/Lyx3314844-03/nexcrawl#readme",
+  "author": "Lan <Lyx3314844-03>",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./api": "./src/api/index.js",
+    "./reverse": "./src/reverse/index.js"
+  }
+}

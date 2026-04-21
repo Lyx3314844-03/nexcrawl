@@ -1,0 +1,16 @@
+node_modules/
+runs/
+.omnicrawl/
+coverage/
+.nyc_output/
+logs/
+tmp/
+.env
+.env.*
+.git/
+.github/
+tests/
+docs/
+*.log
+*.sqlite
+*.db

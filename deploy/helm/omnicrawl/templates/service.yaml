@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "omnicrawl.fullname" . }}
+  labels:
+    {{- include "omnicrawl.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "omnicrawl.selectorLabels" . | nindent 4 }}
+---
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "omnicrawl.fullname" . }}-metrics
+  labels:
+    {{- include "omnicrawl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+  {{- with .Values.metrics.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.metrics.service.type }}
+  ports:
+    - port: {{ .Values.metrics.service.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "omnicrawl.selectorLabels" . | nindent 4 }}
+{{- end }}

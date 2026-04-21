@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "paths": {
+      "omnicrawl": ["./src/index.js"],
+      "omnicrawl/api": ["./src/api/index.js"]
+    }
+  },
+  "include": ["src/**/*.js", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "tests", "examples"]
+}

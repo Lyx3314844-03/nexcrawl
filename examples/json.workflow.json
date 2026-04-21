@@ -1,0 +1,23 @@
+{
+  "name": "json-demo",
+  "seedUrls": ["https://jsonplaceholder.typicode.com/todos/1"],
+  "mode": "http",
+  "concurrency": 1,
+  "maxDepth": 0,
+  "extract": [
+    {
+      "name": "todo_title",
+      "type": "json",
+      "path": "title"
+    },
+    {
+      "name": "completed",
+      "type": "json",
+      "path": "completed"
+    }
+  ],
+  "plugins": [
+    { "name": "dedupe" },
+    { "name": "audit" }
+  ]
+}

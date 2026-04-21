@@ -1,0 +1,142 @@
+{
+  "assetId": "tool-app-capture-bf6527a1-c74b-4d76-ad5a-f4b8349be040",
+  "versionId": "23d2a6ba317d4817234b01537e07ba81e7da56df466d7cf91b6fc48e712b39d7",
+  "workflowName": "tool-app-capture",
+  "jobId": null,
+  "createdAt": "2026-04-21T05:08:02.401Z",
+  "payload": {
+    "sessionId": "bf6527a1-c74b-4d76-ad5a-f4b8349be040",
+    "status": "stopped",
+    "platform": null,
+    "captureDir": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040",
+    "target": {
+      "bundleId": null,
+      "deviceId": null
+    },
+    "generatedFiles": [
+      {
+        "key": "fridaScriptPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\frida-auto.js"
+      },
+      {
+        "key": "androidBootstrapPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\android-bootstrap.sh"
+      },
+      {
+        "key": "windowsBootstrapPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\windows-bootstrap.bat"
+      },
+      {
+        "key": "iosNotesPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\ios-capture-notes.md"
+      },
+      {
+        "key": "androidProxySetupPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\android-proxy-setup.sh"
+      },
+      {
+        "key": "androidClearProxyPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\android-clear-proxy.sh"
+      },
+      {
+        "key": "windowsProxyNotesPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\windows-proxy-notes.md"
+      },
+      {
+        "key": "bundleReadmePath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\README.md"
+      },
+      {
+        "key": "captureManifestPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\capture-manifest.json"
+      }
+    ],
+    "plan": {
+      "kind": "app-native-plan",
+      "format": "external-advisory",
+      "ready": true,
+      "toolStatus": {
+        "frida": {
+          "available": true,
+          "version": "test"
+        },
+        "frida-ps": {
+          "available": true,
+          "version": "test"
+        },
+        "mitmdump": {
+          "available": false,
+          "version": null
+        },
+        "mitmproxy": {
+          "available": false,
+          "version": null
+        }
+      },
+      "prerequisites": [],
+      "warnings": [
+        "Frida is enabled but no bundleId was provided; attach target selection will remain manual."
+      ],
+      "steps": [
+        {
+          "id": "frida-attach",
+          "tool": "frida",
+          "enabled": true,
+          "available": true,
+          "mode": "external-advisory",
+          "description": "Attach Frida to the target app and load the SSL-pinning / bridge instrumentation script.",
+          "command": "frida -U -l C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\bf6527a1-c74b-4d76-ad5a-f4b8349be040\\frida-auto.js --no-pause"
+        }
+      ],
+      "protocolHints": {
+        "protobuf": {
+          "enabled": false,
+          "descriptorPaths": []
+        },
+        "grpc": {
+          "enabled": false,
+          "services": {}
+        },
+        "websocket": {
+          "captureBinary": true
+        }
+      }
+    },
+    "processes": [
+      {
+        "stepId": "frida-attach",
+        "pid": 13632,
+        "command": "C:\\Program Files\\nodejs\\node.exe",
+        "args": [
+          "-e",
+          "setTimeout(() => process.exit(0), 5000)"
+        ],
+        "shell": false,
+        "startedAt": "2026-04-21T05:08:02.279Z",
+        "exitedAt": "2026-04-21T05:08:02.399Z",
+        "exitCode": null,
+        "signal": "SIGTERM",
+        "exitPromise": {}
+      }
+    ],
+    "logTail": [
+      {
+        "at": "2026-04-21T05:08:02.279Z",
+        "level": "info",
+        "stepId": "frida-attach",
+        "message": "started process C:\\Program Files\\nodejs\\node.exe"
+      },
+      {
+        "at": "2026-04-21T05:08:02.389Z",
+        "level": "info",
+        "message": "capture session stopped"
+      },
+      {
+        "at": "2026-04-21T05:08:02.399Z",
+        "level": "error",
+        "stepId": "frida-attach",
+        "message": "process exited with code null signal SIGTERM"
+      }
+    ]
+  }
+}

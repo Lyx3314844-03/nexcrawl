@@ -1,0 +1,40 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+      
+      - name: Check for fixable vulnerabilities
+        run: npm audit fix --dry-run
+      
+      - name: Generate audit report
+        run: npm audit --json > audit-report.json
+        continue-on-error: true
+      
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: audit-report.json

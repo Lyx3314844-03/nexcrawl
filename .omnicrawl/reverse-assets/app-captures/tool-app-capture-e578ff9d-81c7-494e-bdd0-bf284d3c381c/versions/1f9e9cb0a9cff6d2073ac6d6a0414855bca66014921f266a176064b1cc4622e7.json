@@ -1,0 +1,108 @@
+{
+  "assetId": "tool-app-capture-e578ff9d-81c7-494e-bdd0-bf284d3c381c",
+  "versionId": "1f9e9cb0a9cff6d2073ac6d6a0414855bca66014921f266a176064b1cc4622e7",
+  "workflowName": "tool-app-capture",
+  "jobId": null,
+  "createdAt": "2026-04-21T04:58:51.700Z",
+  "payload": {
+    "sessionId": "e578ff9d-81c7-494e-bdd0-bf284d3c381c",
+    "status": "starting",
+    "platform": null,
+    "captureDir": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c",
+    "target": {
+      "bundleId": null,
+      "deviceId": null
+    },
+    "generatedFiles": [
+      {
+        "key": "fridaScriptPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\frida-auto.js"
+      },
+      {
+        "key": "androidBootstrapPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\android-bootstrap.sh"
+      },
+      {
+        "key": "windowsBootstrapPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\windows-bootstrap.bat"
+      },
+      {
+        "key": "iosNotesPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\ios-capture-notes.md"
+      },
+      {
+        "key": "androidProxySetupPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\android-proxy-setup.sh"
+      },
+      {
+        "key": "androidClearProxyPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\android-clear-proxy.sh"
+      },
+      {
+        "key": "windowsProxyNotesPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\windows-proxy-notes.md"
+      },
+      {
+        "key": "bundleReadmePath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\README.md"
+      },
+      {
+        "key": "captureManifestPath",
+        "path": "C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\capture-manifest.json"
+      }
+    ],
+    "plan": {
+      "kind": "app-native-plan",
+      "format": "external-advisory",
+      "ready": true,
+      "toolStatus": {
+        "frida": {
+          "available": true,
+          "version": "test"
+        },
+        "frida-ps": {
+          "available": true,
+          "version": "test"
+        },
+        "mitmdump": {
+          "available": false,
+          "version": null
+        },
+        "mitmproxy": {
+          "available": false,
+          "version": null
+        }
+      },
+      "prerequisites": [],
+      "warnings": [
+        "Frida is enabled but no bundleId was provided; attach target selection will remain manual."
+      ],
+      "steps": [
+        {
+          "id": "frida-attach",
+          "tool": "frida",
+          "enabled": true,
+          "available": true,
+          "mode": "external-advisory",
+          "description": "Attach Frida to the target app and load the SSL-pinning / bridge instrumentation script.",
+          "command": "frida -U -l C:\\Users\\Administrator\\omnicrawl\\.omnicrawl\\app-captures\\e578ff9d-81c7-494e-bdd0-bf284d3c381c\\frida-auto.js --no-pause"
+        }
+      ],
+      "protocolHints": {
+        "protobuf": {
+          "enabled": false,
+          "descriptorPaths": []
+        },
+        "grpc": {
+          "enabled": false,
+          "services": {}
+        },
+        "websocket": {
+          "captureBinary": true
+        }
+      }
+    },
+    "processes": [],
+    "logTail": []
+  }
+}

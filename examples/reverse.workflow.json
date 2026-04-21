@@ -1,0 +1,23 @@
+{
+  "name": "reverse-demo",
+  "seedUrls": ["https://example.com"],
+  "mode": "http",
+  "concurrency": 1,
+  "maxDepth": 0,
+  "extract": [
+    {
+      "name": "reverse",
+      "type": "reverse",
+      "mode": "html"
+    }
+  ],
+  "plugins": [
+    { "name": "dedupe" },
+    { "name": "audit" }
+  ],
+  "output": {
+    "dir": "runs",
+    "persistBodies": false,
+    "console": true
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "omnicrawl-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/**/*.test.js",
+    "test:reverse": "node --test tests/reverse/*.test.js",
+    "test:watch": "node --test --watch tests/**/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage tests/**/*.test.js"
+  }
+}

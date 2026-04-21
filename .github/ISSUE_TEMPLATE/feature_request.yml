@@ -1,0 +1,60 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement
+labels: ["enhancement", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Please describe your use case clearly.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem does this feature solve? What's the use case?
+      placeholder: "When crawling X, I need to be able to..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should this feature work?
+      placeholder: |
+        ```javascript
+        crawler.useNewFeature({ option: true })
+        ```
+      render: javascript
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches did you consider?
+      placeholder: "I also thought about..."
+    validations:
+      required: false
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      options:
+        - Core Crawler (fetch, queue, pipeline)
+        - Reverse Engineering (WAF, CAPTCHA, deobfuscation)
+        - Rate Limiting & Throttling
+        - Storage & Persistence
+        - Observability (metrics, tracing, logging)
+        - Deployment (Docker, K8s, CI/CD)
+        - Documentation & Examples
+        - Plugin System
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Screenshots, links, references, or other relevant information.
+    validations:
+      required: false

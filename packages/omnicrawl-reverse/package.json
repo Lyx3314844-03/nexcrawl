@@ -1,0 +1,49 @@
+{
+  "name": "omnicrawl-reverse",
+  "version": "1.1.0",
+  "description": "OmniCrawl Reverse Engineering Plugin — WAF bypass, CAPTCHA solving, JS deobfuscation, signature inference, and protocol analysis",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "keywords": [
+    "omnicrawl",
+    "reverse-engineering",
+    "waf-bypass",
+    "captcha-solver",
+    "cloudflare",
+    "deobfuscation",
+    "ast-analysis",
+    "signature-inference",
+    "protocol-analysis",
+    "web-scraping",
+    "anti-bot"
+  ],
+  "author": "OmniCrawl Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lyx3314844-03/omnicrawl.git",
+    "directory": "packages/omnicrawl-reverse"
+  },
+  "homepage": "https://github.com/Lyx3314844-03/omnicrawl/tree/main/packages/omnicrawl-reverse",
+  "bugs": {
+    "url": "https://github.com/Lyx3314844-03/omnicrawl/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "omnicrawl": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "omnicrawl": {
+      "optional": true
+    }
+  },
+  "files": [
+    "src/",
+    "README.md"
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "name": "example-surface-crawl",
+  "seedUrls": ["https://example.com"],
+  "mode": "hybrid",
+  "concurrency": 2,
+  "maxDepth": 1,
+  "timeoutMs": 30000,
+  "extract": [
+    {
+      "name": "title",
+      "type": "regex",
+      "pattern": "<title>([^<]+)</title>"
+    },
+    {
+      "name": "surface",
+      "type": "surface"
+    },
+    {
+      "name": "headline",
+      "type": "script",
+      "code": "return body.includes('Example Domain') ? 'Example Domain' : null;"
+    }
+  ],
+  "discovery": {
+    "enabled": true,
+    "maxPages": 4,
+    "sameOriginOnly": true,
+    "extractor": {
+      "name": "links",
+      "type": "links",
+      "all": true,
+      "maxItems": 20
+    }
+  },
+  "requestQueue": {
+    "dropQueryParamPatterns": ["^utm_"],
+    "priority": {
+      "seed": 100,
+      "sitemap": 80,
+      "discovery": 50,
+      "depthPenalty": 10
+    }
+  },
+  "retry": {
+    "attempts": 2,
+    "backoffMs": 150,
+    "strategy": "exponential",
+    "maxBackoffMs": 1000,
+    "jitterRatio": 0.1,
+    "respectRetryAfter": true
+  },
+  "httpCache": {
+    "enabled": true,
+    "persistBody": true,
+    "reuseBodyOnNotModified": true,
+    "maxBodyBytes": 250000
+  },
+  "plugins": [
+    { "name": "dedupe" },
+    { "name": "throttle", "options": { "delayMs": 100 } },
+    { "name": "rotateUserAgent" },
+    { "name": "audit" }
+  ],
+  "output": {
+    "dir": "runs",
+    "persistBodies": false,
+    "console": true
+  }
+}

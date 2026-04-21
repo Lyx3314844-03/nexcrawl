@@ -1,0 +1,44 @@
+{
+  "name": "browser-session-demo",
+  "seedUrls": ["https://example.com"],
+  "mode": "browser",
+  "concurrency": 1,
+  "maxDepth": 0,
+  "browser": {
+    "headless": true,
+    "waitUntil": "load",
+    "pool": {
+      "maxBrowsers": 2,
+      "closeIdleMs": 120000
+    }
+  },
+  "session": {
+    "enabled": true,
+    "scope": "custom",
+    "id": "demo-session",
+    "persist": true,
+    "isolate": true,
+    "captureStorage": true
+  },
+  "extract": [
+    {
+      "name": "title",
+      "type": "regex",
+      "pattern": "<title>([^<]+)</title>"
+    },
+    {
+      "name": "surface",
+      "type": "surface"
+    }
+  ],
+  "plugins": [
+    { "name": "dedupe" },
+    { "name": "rotateUserAgent" },
+    { "name": "audit" }
+  ],
+  "output": {
+    "dir": "runs",
+    "persistBodies": false,
+    "console": true
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Idle", "color": "blue" }, "1": { "text": "Running", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 1 }] },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto" },
+      "pluginVersion": "10.4.0",
+      "targets": [{ "expr": "omnicrawl_running_jobs", "legendFormat": "Status" }],
+      "title": "Crawler Status",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        { "expr": "rate(omnicrawl_requests_total[5m])", "legendFormat": "Requests/sec" },
+        { "expr": "rate(omnicrawl_requests_success_total[5m])", "legendFormat": "Success/sec" },
+        { "expr": "rate(omnicrawl_requests_error_total[5m])", "legendFormat": "Errors/sec" }
+      ],
+      "title": "Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.1 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "auto" },
+      "pluginVersion": "10.4.0",
+      "targets": [{ "expr": "rate(omnicrawl_requests_error_total[5m]) / rate(omnicrawl_requests_total[5m])", "legendFormat": "Error Rate" }],
+      "title": "Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "items"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        { "expr": "omnicrawl_items_added_total", "legendFormat": "Items Added" },
+        { "expr": "omnicrawl_items_deduplicated_total", "legendFormat": "Deduplicated" }
+      ],
+      "title": "Items Extracted",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "id": 5,
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "auto" },
+      "pluginVersion": "10.4.0",
+      "targets": [{ "expr": "histogram_quantile(0.95, rate(omnicrawl_request_duration_seconds_bucket[5m])) * 1000", "legendFormat": "P95 Latency" }],
+      "title": "P95 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.7 }, { "color": "red", "value": 0.9 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 },
+      "id": 6,
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "auto" },
+      "pluginVersion": "10.4.0",
+      "targets": [{ "expr": "omnicrawl_rate_limiter_utilization", "legendFormat": "Utilization" }],
+      "title": "Rate Limiter Utilization",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "right" }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        { "expr": "omnicrawl_queue_size", "legendFormat": "Queue Size" },
+        { "expr": "omnicrawl_active_requests", "legendFormat": "Active Requests" },
+        { "expr": "omnicrawl_concurrency_limit", "legendFormat": "Concurrency Limit" }
+      ],
+      "title": "Queue & Concurrency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "bytes" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        { "expr": "process_resident_memory_bytes{job='omnicrawl'}", "legendFormat": "RSS" },
+        { "expr": "process_heap_bytes{job='omnicrawl'}", "legendFormat": "Heap" },
+        { "expr": "nodejs_external_memory_bytes{job='omnicrawl'}", "legendFormat": "External" }
+      ],
+      "title": "Memory Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "percentunit" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        { "expr": "rate(process_cpu_seconds_total{job='omnicrawl'}[5m])", "legendFormat": "CPU Usage" }
+      ],
+      "title": "CPU Usage",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["omnicrawl", "crawler"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "OmniCrawl Overview",
+  "uid": "omnicrawl-overview",
+  "version": 1
+}

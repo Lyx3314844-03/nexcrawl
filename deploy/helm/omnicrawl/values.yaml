@@ -1,0 +1,165 @@
+# OmniCrawl Helm Values
+# Customize your deployment with these values.
+
+replicaCount: 2
+
+image:
+  repository: omnicrawl/omnicrawl
+  pullPolicy: IfNotPresent
+  tag: "1.1.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account for RBAC
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9464"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Crawler service
+service:
+  type: ClusterIP
+  port: 3000
+  annotations: {}
+
+# Prometheus metrics service
+metrics:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 9464
+    annotations:
+      prometheus.io/scrape: "true"
+
+# Ingress
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
+
+# Resource limits
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - omnicrawl
+          topologyKey: kubernetes.io/hostname
+
+# Persistence for job state
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  storageClass: ""
+  mountPath: /app/data
+
+# Redis for distributed rate limiting
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+# OpenTelemetry
+otel:
+  enabled: false
+  endpoint: "http://otel-collector:4318"
+  serviceName: "omnicrawl"
+  sampler: "always_on"
+  sampleRate: 1.0
+
+# Crawler configuration
+config:
+  maxConcurrency: 10
+  requestsPerSecond: 5
+  burstSize: 15
+  logLevel: "info"
+  logJson: false
+  browserHeadless: true
+
+# Environment variables
+env: {}
+# API_KEY: "xxx"
+# PROXY_URL: "http://proxy:8080"
+
+# Secrets
+secrets: {}
+# These will be created as K8s Secrets
+# apiToken: "xxx"
+
+# Health check
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+
+# ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  path: /metrics
+  labels: {}

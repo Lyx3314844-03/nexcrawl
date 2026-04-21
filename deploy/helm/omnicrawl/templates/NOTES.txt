@@ -1,0 +1,30 @@
+OmniCrawl has been deployed!
+
+📊 Monitor your crawler:
+  - Metrics:  http://{{ .Release.Name }}.{{ .Values.service.port }}/
+  - Prometheus: http://{{ include "omnicrawl.fullname" . }}-metrics:{{ .Values.metrics.service.port }}/metrics
+
+🔍 Check status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+📜 View logs:
+  kubectl logs -f deployment/{{ include "omnicrawl.fullname" . }}
+
+⚙️ Configuration:
+  - Max Concurrency: {{ .Values.config.maxConcurrency }}
+  - Requests/sec:    {{ .Values.config.requestsPerSecond }}
+  - Log Level:       {{ .Values.config.logLevel }}
+
+{{- if .Values.persistence.enabled }}
+💾 Persistence:
+  - Volume: {{ include "omnicrawl.fullname" . }}-data ({{ .Values.persistence.size }})
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+🗄️ Redis:
+  - Host: {{ .Release.Name }}-redis
+  - Port: 6379
+{{- end }}
+
+🚀 Quick test:
+  kubectl exec -it deployment/{{ include "omnicrawl.fullname" . }} -- node -e "console.log('OmniCrawl v1.1.0 ready!')"

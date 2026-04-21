@@ -1,0 +1,22 @@
+apiVersion: v2
+name: omnicrawl
+description: OmniCrawl — Universal web crawler with reverse engineering capabilities
+type: application
+version: 1.1.0
+appVersion: "1.1.0"
+home: https://github.com/omnicrawl/omnicrawl
+icon: https://omnicrawl.dev/assets/icon.png
+keywords:
+  - crawler
+  - scraper
+  - web
+  - reverse-engineering
+  - mcp
+maintainers:
+  - name: omnicrawl-team
+    email: team@omnicrawl.dev
+sources:
+  - https://github.com/omnicrawl/omnicrawl
+annotations:
+  category: Networking
+  licenses: MIT
