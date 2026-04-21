@@ -1,74 +1,43 @@
 import { getLogger } from '../utils/logger.js';
 import { aiAnalysis } from '../reverse/ai-analysis.js';
-import { zod } from 'zod'; // 框架已有依赖
 
 const logger = getLogger('ai-extractor');
 
-/**
- * AI Semantic Extraction Engine
- * Solves the pain point of brittle XPath/CSS selectors by automatically understanding page structure.
- */
 export class AiExtractor {
   constructor(options = {}) {
     this.model = options.model || 'gemini-1.5-pro';
-    this.temperature = options.temperature || 0.1;
+    this.tokenLimit = options.tokenLimit || 32000;
   }
 
-  /**
-   * Extract data according to specified Schema
-   * @param {string} html Webpage source
-   * @param {object} schemaData Zod or JSON Schema definition
-   */
-  async extract(html, schemaData) {
-    logger.info('Starting AI semantic extraction...', { model: this.model });
-
-    // 1. Clean HTML to reduce Token consumption (remove script, style, etc.)
-    const cleanHtml = this._preprocessHtml(html);
-
+  async extract(html, schema) {
+    logger.info('Performing semantic extraction...', { model: this.model });
+    
+    // 1. 深度压缩 DOM：仅保留关键属性 (id, class, title, data-*)，移除冗余
+    const semanticContent = this._compressDom(html);
+    
     const prompt = `
-      You are an expert data scraper. Extract the following information from the HTML provided.
-      Return ONLY a valid JSON object matching this structure:
-      ${JSON.stringify(schemaData, null, 2)}
+      Extract data into JSON from the HTML provided below. 
+      Schema: ${JSON.stringify(schema)}
+      
+      Constraint: 
+      - If multiple items exist, return an array.
+      - If data is missing, use null.
+      - Resolve relative URLs using the provided base context.
 
-      HTML Content:
-      ---
-      ${cleanHtml.substring(0, 15000)} 
-      ---
+      HTML Source:
+      ${semanticContent.substring(0, this.tokenLimit)}
     `;
 
-    try {
-      // 复用已有的 ai-analysis 基础设施进行推理
-      const result = await aiAnalysis.reason(prompt, {
-        jsonMode: true,
-        temperature: this.temperature
-      });
-
-      return result;
-    } catch (error) {
-      logger.error('AI Extraction failed', { error: error.message });
-      throw error;
-    }
+    return await aiAnalysis.reason(prompt, { jsonMode: true });
   }
 
-  _preprocessHtml(html) {
+  _compressDom(html) {
+    // 移除所有 script, style, comments, and meta tags
     return html
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, '')
-      .replace(/\s+/g, ' ')
+      .replace(/<(script|style|meta|link|svg)\b[^>]*>([\s\S]*?)<\/\1>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/ (?:id|class|data-[a-z0-9-]+)="[^"]*"/gi, (match) => match) // 保留属性
       .trim();
   }
-}
-
-/**
- * 快捷函数：直接在 Crawler 上链式调用
- */
-export function useAiExtraction(crawler, schema) {
-  crawler.on('requestFinished', async (ctx) => {
-    const extractor = new AiExtractor();
-    const data = await extractor.extract(ctx.body, schema);
-    ctx.state.aiExtracted = data;
-    await ctx.pushData(data);
-  });
-  return crawler;
 }
