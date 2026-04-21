@@ -2,115 +2,109 @@
   <img src="logo.svg" width="220" alt="NexCrawl Banner" />
 </p>
 
-<h1 align="center">NexCrawl: The Web Intelligence Titan</h1>
+<h1 align="center">NexCrawl: The Infinite Intelligence Platform</h1>
 
 <p align="center">
-  <b>A comprehensive, AI-first crawling ecosystem for massive data acquisition and advanced reverse engineering.</b>
+  <b>The world's most comprehensive framework for Web, App, and API data extraction.</b><br>
+  Built for industrial-scale intelligence, military-grade stealth, and zero-maintenance AI automation.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Release-v1.2.0-7F00FF?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/AI-LLM_Integrated-orange?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Security-Military_Grade-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Version-1.2.0-blueviolet?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/AI-Autonomous_Agents-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Anti--Bot-WAF_Slayer-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Mobile-Native_Interception-green?style=for-the-badge" />
 </p>
 
 ---
 
-## 💎 Why NexCrawl?
+## 🌌 The Periodic Table of NexCrawl Capabilities
 
-Most crawlers fail when they hit advanced WAFs (Akamai, DataDome) or require constant maintenance due to UI changes. NexCrawl solves this by moving from **"Rule-Based Extraction"** to **"Intelligence-Driven Extraction."**
+### 1. 🧠 Intelligence Layer (The Brain)
+*   **Zero-Selector Extraction**: Direct HTML-to-JSON reasoning using LLMs (GPT/Gemini).
+*   **Semantic DOM Compression**: Proprietary algorithm to strip 90% of HTML noise for cost-efficient AI processing.
+*   **Autonomous Task Agent**: Goal-driven navigation (Recursive Task Decomposition) to handle complex interactions.
+*   **Self-Healing Pipelines**: Automatically detects and repairs extraction rules when a site's UI changes.
+*   **MFA Automator**: Built-in logic to intercept and auto-fill SMS/Email verification codes.
 
-### 🎯 Key Performance Pillars
+### 2. 🛡️ Ghost Stealth Stack (The Cloak)
+*   **VStealth Runtime**: Deep sanitization of the JS environment to wipe all traces of Playwright/Puppeteer/Selenium.
+*   **Hardware Entropy Injection**: Dynamic noise injection for **WebGL**, **Canvas**, and **AudioContext** fingerprints.
+*   **TLS/JA3/JA4 Spoofing**: Fully customizable TLS handshake signatures to mimic any modern browser or mobile device.
+*   **HTTP/2 Frame Fingerprinting**: Precise control over H2 settings, windows, and stream priorities to defeat server-side OS fingerprinting.
+*   **Intl/Locale Consistency**: Synchronizes browser timezone, language, and hardware concurrency with proxy IP location.
 
-| Feature | Description | Status |
+### 3. 📱 Mobile & Native Lab (The Bridge)
+*   **Native App Crawler**: Direct automation of Android and iOS apps via Appium integration.
+*   **Frida Bridge**: Real-time native Hooking to bypass **SSL Pinning**, Root checks, and emulator detection.
+*   **WebView Interceptor**: Seamlessly transition between Native App contexts and embedded WebViews.
+*   **Binary Protocol Inferrer**: Automatically reconstructs Protobuf schemas from raw gRPC/HTTP2 streams.
+*   **Native App Routing**: Orchestrates mobile app flows using the same middleware-based Router as web crawls.
+
+### 4. 🛠️ Reverse Engineering Toolkit (The X-Ray)
+*   **V8 Bytecode Analyzer**: Static and dynamic analysis of compiled `.jsc` (bytenode) files.
+*   **Heap Memory Forensics**: Automated RAM scanning to extract dynamic encryption keys and session tokens.
+*   **Runtime Sentinel**: Transparent monitoring of Node.js system calls (`fs`, `net`, `crypto`).
+*   **Control Flow Deobfuscator**: Built-in tools for unwinding complex JS obfuscation and string-array encoding.
+*   **WASM Reversing**: Extraction and analysis of WebAssembly modules used in modern signature generation.
+
+### 5. ⛓️ Industrial Ops & Scaling (The Exoskeleton)
+*   **Queue Sharding**: MD5-based URL partitioning across Redis clusters for billion-scale task management.
+*   **Sharded DB Sinks**: High-throughput storage with automated table partitioning for PostgreSQL, MySQL, and Mongo.
+*   **Browser Pool Guard**: Self-healing service that monitors instance health and recycles leaky or zombie processes.
+*   **Predictive Autoscaling**: Adjusts concurrency in real-time based on system load and target site pressure.
+*   **Data Integrity Guard**: Integrated Zod-based validation pipelines to block "dirty data" from entering the database.
+
+### 6. 📡 Multi-Mode Engines (The Heart)
+*   **HttpCrawler**: Lightning-fast, stateless fetcher for high-speed API and HTML scraping.
+*   **BrowserCrawler**: Full-render engine for heavy SPA, Shadow DOM, and Canvas-based sites.
+*   **GrpcCrawler**: Native transport for binary gRPC services with auto-decoding.
+*   **TorCrawler**: Built-in anonymity circuits for dark-web (.onion) access and IP rotation.
+*   **WebSocket/GraphQL**: Native support for modern real-time and query-based protocols.
+*   **StreamRecorder**: Live-stream capturing (RTMP/HLS) with automated segmenting via FFmpeg.
+
+---
+
+## 💻 Installation Matrix
+
+| Operating System | Quick Install Command | Requirements |
 | :--- | :--- | :--- |
-| **Zero-Selector AI** | No more XPath/CSS. Describe what you want in plain English. | 🚀 Production |
-| **Ghost Stealth** | Hardware-level masking (GPU/Audio) and stack-trace sanitization. | 🛡️ Critical |
-| **Native Mobile** | Real-device control with automated SSL Pinning bypass. | 📱 Native |
-| **Hyper-Scale** | Distributed sharding for 100M+ URL frontiers. | ⛓️ Scalable |
-| **Binary Protocol** | Reverse-engineer gRPC and Protobuf without `.proto` files. | 🛠️ Advanced |
+| **Windows** | `npm install -g nexcrawl && npx playwright install` | Node.js v20+ |
+| **macOS** | `brew install node && npm install -g nexcrawl` | Homebrew |
+| **Linux** | `sudo apt install nodejs ffmpeg libnss3 && npm install -g nexcrawl` | Ubuntu/Debian |
 
 ---
 
-## 🛠️ Detailed Capability Map
+## 🚀 The NexCrawl Workflow
 
-### 1. 🧠 The Intelligence Layer
-NexCrawl integrates a cognitive engine that "understands" the web:
-*   **Semantic Data Extraction**: Uses a proprietary **DOM Compression Algorithm** to feed clean, semantic HTML into LLMs (GPT-4/Gemini), extracting structured JSON with 99% accuracy.
-*   **Autonomous Agent**: Define a high-level goal (e.g., *"Find the cheapest RTX 4090 on this site and check its delivery time"*). The agent dynamically interacts with elements until the goal is met.
-*   **Self-Healing Workflows**: When a website updates its UI, the AI detects the break and automatically repairs the data mapping.
-
-### 2. 🛡️ The Ghost Stealth Stack (Anti-Bot Evasion)
-Break through military-grade protection using our multi-layered stealth:
-*   **Hardware Entropy Injection**: Injects random noise into **WebGL (GPU)**, **Canvas**, and **AudioContext** fingerprints, ensuring your hardware hash is unique every session.
-*   **VStealth Environment**: Wipes all traces of Puppeteer/Playwright from the browser environment, including `Error.stack` sanitization and `Intl` locale consistency.
-*   **WAF Fingerprint Spoofing**: Custom HTTP/2 and TLS/JA3/JA4 stacks that perfectly mimic real Chrome/Safari behavior on iOS and Android.
-
-### 3. 📱 Native Mobile & Low-Level Protocols
-Go beyond the browser to capture App data:
-*   **Frida-Powered Bridge**: Injects hooks into native Android/iOS processes to strip **SSL Pinning** and capture encrypted traffic in plain text.
-*   **Protobuf Inferrer**: Automatically discovers the structure of binary gRPC messages, allowing you to scrape high-performance backend APIs directly.
-*   **Mobile-Native Router**: Orchestrates Appium sessions like standard web requests, allowing cross-platform scraping flows.
-
----
-
-## 💻 Installation & Setup
-
-### **Multi-OS Quick Install**
-
-| OS | Command |
-| :--- | :--- |
-| **Windows** | `npm install -g nexcrawl && npx playwright install chromium` |
-| **macOS** | `brew install node && npm install -g nexcrawl` |
-| **Linux** | `sudo apt-get install nodejs ffmpeg libnss3 && npm install -g nexcrawl` |
-
----
-
-## 📖 Advanced Usage Examples
-
-### AI Extraction (No Selectors)
 ```javascript
-import { NexCrawler, AiExtractor } from 'nexcrawl';
+import { NexCrawler, AiExtractor, NativeBridge, ShardedDbSink } from 'nexcrawl';
 
-const extractor = new AiExtractor({ model: 'gemini-1.5-pro' });
-const html = await NexCrawler.fetch('https://some-complex-site.com');
+// 1. Initialize professional-grade components
+const crawler = new NexCrawler({ stealth: { vStealth: true } });
+const extractor = new AiExtractor();
+const sink = new ShardedDbSink({ shardType: 'daily' });
 
-const data = await extractor.extract(html, {
-  products: [{ name: "string", discount_price: "number", rating: "number" }]
-});
-```
-
-### Distributed High-Throughput Job
-```javascript
-import { ClusterPartitionManager, ShardedDbSink } from 'nexcrawl';
-
-const sink = new ShardedDbSink({ shardType: 'hash', maxBatchSize: 1000 });
-const manager = new ClusterPartitionManager({ 
-  shards: ['redis://node1', 'redis://node2'] 
+// 2. Perform intelligence-driven extraction
+const response = await crawler.fetch('https://complex-target.com');
+const data = await extractor.extract(response.body, {
+  market_trends: [{ topic: "string", sentiment: "number" }]
 });
 
-// Billion-scale URL queue management
-await manager.dispatch(myUrls);
+// 3. Stream to high-scale storage
+await sink.push(data);
 ```
 
 ---
 
-## 📂 Project Structure
-```text
-nexcrawl/
-├── src/
-│   ├── api/        # High-level AI & Intelligence interfaces
-│   ├── runtime/    # Engines, Sharding, and Storage Sinks
-│   ├── reverse/    # WAF Bypass, Frida, and Bytecode Tools
-│   └── utils/      # Networking & Crypto utilities
-├── docs/           # Deep Technical Documentation
-└── tests/          # Industrial-grade Test Suite
-```
+## 📄 Licensing & Ecosystem
+*   **License**: MIT
+*   **Full Documentation**: [./docs](./docs)
+*   **API Reference**: [./docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
+*   **Industrial Guide**: [./docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 
 ---
 
-## 📄 License & Commercial
-This project is licensed under the **MIT License**. For enterprise support or high-frequency proxy rotation services, contact the maintainers.
-
-## 🌍 Connect
+## 🌍 Connect with NexCrawl
 GitHub: [https://github.com/Lyx3314844-03/nexcrawl](https://github.com/Lyx3314844-03/nexcrawl)
+Issues: [Submit a Bug Report](https://github.com/Lyx3314844-03/nexcrawl/issues)
