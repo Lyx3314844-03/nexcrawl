@@ -1,27 +1,34 @@
-<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#8E2DE2;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#4A00E0;stop-opacity:1" />
+    <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7F00FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E100FF;stop-opacity:1" />
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
-      <feOffset dx="2" dy="4" result="offsetblur" />
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.5" />
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
   </defs>
-  <rect width="200" height="200" rx="40" fill="url(#grad1)" />
-  <g filter="url(#shadow)">
-    <path d="M60 150V50L140 150V50" stroke="white" stroke-width="15" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-    <circle cx="60" cy="50" r="8" fill="#00f2fe" />
-    <circle cx="140" cy="150" r="8" fill="#00f2fe" />
-    <path d="M100 80L100 120M80 100L120 100" stroke="rgba(255,255,255,0.5)" stroke-width="4" />
+  
+  <!-- Outer Hexagon Shadow -->
+  <path d="M200 40 L340 120 L340 280 L200 360 L60 280 L60 120 Z" fill="rgba(0,0,0,0.2)" transform="translate(10,10)" />
+  
+  <!-- Main Hexagon Frame -->
+  <path d="M200 40 L340 120 L340 280 L200 360 L60 280 L60 120 Z" fill="url(#mainGrad)" stroke="white" stroke-width="2" />
+  
+  <!-- AI Neural Pattern -->
+  <g filter="url(#glow)">
+    <circle cx="200" cy="120" r="15" fill="white" />
+    <circle cx="130" cy="240" r="15" fill="white" />
+    <circle cx="270" cy="240" r="15" fill="white" />
+    
+    <path d="M200 120 L130 240 M200 120 L270 240 M130 240 L270 240" stroke="white" stroke-width="8" stroke-linecap="round" />
   </g>
-  <text x="100" y="185" font-family="Arial, Helvetica" font-size="14" fill="white" text-anchor="middle" font-weight="bold" letter-spacing="2">NEXCRAWL</text>
+  
+  <!-- Inner Detail Lines -->
+  <path d="M200 40 V120 M340 120 L270 240 M60 120 L130 240" stroke="rgba(255,255,255,0.3)" stroke-width="4" />
+  
+  <!-- Bottom Text -->
+  <text x="200" y="325" font-family="'Segoe UI', Roboto, sans-serif" font-size="28" fill="white" text-anchor="middle" font-weight="900" letter-spacing="8">NEXCRAWL</text>
+  <text x="200" y="345" font-family="'Segoe UI', Roboto, sans-serif" font-size="12" fill="rgba(255,255,255,0.8)" text-anchor="middle" font-weight="400" letter-spacing="2">NEXT-GEN EXTRACTION ENGINE</text>
 </svg>
