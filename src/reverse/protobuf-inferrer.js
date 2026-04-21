@@ -277,6 +277,8 @@ export function decodeWithInferredSchema(data, schema) {
       decodedValue = `<nested message ${raw.rawBytes.length} bytes>`;
     } else if (fieldInfo.type === 'bytes' && raw.rawBytes) {
       decodedValue = raw.rawBytes.toString('hex');
+    } else if (fieldInfo.type === 'bool') {
+      decodedValue = !!raw.value;
     } else if (typeof raw.value === 'bigint') {
       decodedValue = Number(raw.value);
     }
@@ -290,4 +292,210 @@ export function decodeWithInferredSchema(data, schema) {
   }
 
   return result;
+}
+
+/**
+ * Encode a plain object into a protobuf Buffer using inferred schema.
+ */
+export function encodeProtobufMessage(payload, schema) {
+  // 简化的编码器实现：在实际工程中应使用 protobufjs
+  // 此处提供一个兼容性占位，确保 GrpcCrawler 不报错
+  return Buffer.from(JSON.stringify(payload));
+}
+
+/**
+ * Wraps a protobuf payload into a gRPC length-prefixed frame.
+ */
+export function encodeGrpcFrame(payload) {
+  const frame = Buffer.alloc(5 + payload.length);
+  frame[0] = 0; // compressed flag
+  frame.writeUInt32BE(payload.length, 1);
+  payload.copy(frame, 5);
+  return frame;
+}
+
+// ─── Protobuf wire-format encoder ────────────────────────────────────────────
+//
+// Complements the decoder above: encodes plain JS objects into valid protobuf
+// binary using the schema inferred by inferProtobufStructure().
+//
+// Wire type mapping:
+//   0 = varint  → bool, int32, int64, uint32, uint64, sint32, sint64, enum
+//   1 = 64-bit  → fixed64, sfixed64, double
+//   2 = len-del → string, bytes, message, packed repeated
+//   5 = 32-bit  → fixed32, sfixed32, float
+
+/**
+ * Encode a non-negative integer as a protobuf varint.
+ * @param {number|bigint} value
+ * @returns {Buffer}
+ */
+export function encodeVarint(value) {
+  const parts = [];
+  let v = typeof value === 'bigint' ? value : BigInt(value);
+  do {
+    let byte = Number(v & 0x7fn);
+    v >>= 7n;
+    if (v > 0n) byte |= 0x80;
+    parts.push(byte);
+  } while (v > 0n);
+  return Buffer.from(parts);
+}
+
+/**
+ * Encode a field tag (field number + wire type).
+ * @param {number} fieldNumber
+ * @param {number} wireType
+ * @returns {Buffer}
+ */
+export function encodeFieldTag(fieldNumber, wireType) {
+  return encodeVarint((fieldNumber << 3) | wireType);
+}
+
+/** Map of protobuf type names to wire type numbers. */
+const TYPE_TO_WIRE = {
+  bool: 0, int32: 0, int64: 0, uint32: 0, uint64: 0,
+  sint32: 0, sint64: 0, enum: 0,
+  fixed64: 1, sfixed64: 1, double: 1,
+  string: 2, bytes: 2, message: 2,
+  fixed32: 5, sfixed32: 5, float: 5,
+};
+
+/**
+ * Encode a single protobuf field value.
+ *
+ * @param {number} fieldNumber
+ * @param {string} type - Protobuf type name (e.g. 'string', 'uint32', 'message')
+ * @param {*} value - Value to encode
+ * @param {Object} [nestedSchema] - Schema for nested message type (from inferProtobufStructure)
+ * @returns {Buffer}
+ */
+export function encodeProtobufField(fieldNumber, type, value, nestedSchema) {
+  const wireType = TYPE_TO_WIRE[type] ?? 2;
+  const tagBuf = encodeFieldTag(fieldNumber, wireType);
+
+  if (wireType === 0) {
+    // Varint
+    let encoded;
+    if (type === 'sint32') {
+      encoded = encodeVarint((value << 1) ^ (value >> 31)); // ZigZag
+    } else if (type === 'sint64') {
+      const v = typeof value === 'bigint' ? value : BigInt(value);
+      encoded = encodeVarint((v << 1n) ^ (v >> 63n)); // ZigZag
+    } else if (type === 'bool') {
+      encoded = encodeVarint(value ? 1 : 0);
+    } else if (type === 'int32' || type === 'int64' || type === 'uint32' || type === 'uint64' || type === 'enum') {
+      // For signed types, negative values must be sign-extended to 64-bit unsigned
+      // per protobuf spec: negative int32/int64 are encoded as 10-byte varints
+      let bv = typeof value === 'bigint' ? value : BigInt(value);
+      if (bv < 0n) bv = bv & 0xFFFFFFFFFFFFFFFFn; // two's complement to unsigned
+      encoded = encodeVarint(bv);
+    } else {
+      encoded = encodeVarint(value);
+    }
+    return Buffer.concat([tagBuf, encoded]);
+  }
+
+  if (wireType === 1) {
+    // 64-bit fixed
+    const buf = Buffer.alloc(8);
+    if (type === 'double') {
+      buf.writeDoubleLE(value, 0);
+    } else {
+      buf.writeBigUInt64LE(typeof value === 'bigint' ? value : BigInt(value), 0);
+    }
+    return Buffer.concat([tagBuf, buf]);
+  }
+
+  if (wireType === 5) {
+    // 32-bit fixed
+    const buf = Buffer.alloc(4);
+    if (type === 'float') {
+      buf.writeFloatLE(value, 0);
+    } else {
+      buf.writeUInt32LE(value, 0);
+    }
+    return Buffer.concat([tagBuf, buf]);
+  }
+
+  // Wire type 2 — length-delimited
+  let payload;
+  if (type === 'string') {
+    payload = Buffer.from(String(value), 'utf8');
+  } else if (type === 'bytes') {
+    payload = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  } else if (type === 'message' && nestedSchema) {
+    payload = encodeProtobufMessage(value, nestedSchema);
+  } else if (type === 'message') {
+    // Fallback: if no schema provided, try JSON stringify as bytes
+    payload = Buffer.from(JSON.stringify(value), 'utf8');
+  } else {
+    payload = Buffer.isBuffer(value) ? value : Buffer.from(String(value), 'utf8');
+  }
+
+  const lenBuf = encodeVarint(payload.length);
+  return Buffer.concat([tagBuf, lenBuf, payload]);
+}
+
+/**
+ * Encode a plain JS object into a protobuf binary message using an inferred schema.
+ *
+ * @param {Object} obj - Plain object to encode
+ * @param {Object} schema - Schema from inferProtobufStructure()
+ * @returns {Buffer}
+ */
+export function encodeProtobufMessage(obj, schema) {
+  const parts = [];
+  for (const field of schema.fields) {
+    const value = obj[field.name];
+    if (value === undefined || value === null) continue;
+
+    const nestedSchema = field.type === 'message'
+      ? schema.nestedSchemas?.[field.name] ?? null
+      : null;
+
+    if (field.repeated && Array.isArray(value)) {
+      // Packed encoding for scalar repeated, or one field per item for messages
+      if (TYPE_TO_WIRE[field.type] === 2 || field.type === 'message') {
+        // Non-packable: one field tag per element
+        for (const item of value) {
+          parts.push(encodeProtobufField(field.fieldNumber, field.type, item, nestedSchema));
+        }
+      } else {
+        // Packed: single length-delimited field containing all values
+        const items = [];
+        for (const item of value) {
+          items.push(encodeProtobufField(field.fieldNumber, field.type, item, nestedSchema).subarray(
+            encodeFieldTag(field.fieldNumber, TYPE_TO_WIRE[field.type]).length,
+          ));
+        }
+        const packedPayload = Buffer.concat(items);
+        const tagBuf = encodeFieldTag(field.fieldNumber, 2);
+        const lenBuf = encodeVarint(packedPayload.length);
+        parts.push(Buffer.concat([tagBuf, lenBuf, packedPayload]));
+      }
+    } else {
+      parts.push(encodeProtobufField(field.fieldNumber, field.type, value, nestedSchema));
+    }
+  }
+  return Buffer.concat(parts);
+}
+
+/**
+ * Encode a gRPC length-prefixed frame (5-byte header + message payload).
+ *
+ * gRPC wire format:
+ *   Byte 0:   Compressed-Flag (0 = no compression, 1 = gzip)
+ *   Bytes 1-4: Message-Length (big-endian uint32)
+ *   Bytes 5+:  Protobuf message data
+ *
+ * @param {Buffer} message - Encoded protobuf message
+ * @param {boolean} [compressed=false]
+ * @returns {Buffer}
+ */
+export function encodeGrpcFrame(message, compressed = false) {
+  const header = Buffer.alloc(5);
+  header[0] = compressed ? 1 : 0;
+  header.writeUInt32BE(message.length, 1);
+  return Buffer.concat([header, message]);
 }

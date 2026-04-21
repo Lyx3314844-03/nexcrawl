@@ -148,15 +148,17 @@ export {
 } from './runtime/redis-control-plane.js';
 
 // Programmatic API
-export { OmniCrawler } from './api/omnicrawler.js';
+export { OmniCrawler, OmniCrawler as NexCrawler } from './api/omnicrawler.js';
 export { Router } from './api/router.js';
 export { CrawlContextImpl as CrawlContext } from './api/crawl-context.js';
 export { ItemPipeline } from './api/item-pipeline.js';
 export { GracefulShutdown } from './api/graceful-shutdown.js';
 export {
   HttpCrawler,
+  HttpCrawler as NexHttpCrawler,
   CheerioCrawler,
   BrowserCrawler,
+  BrowserCrawler as NexBrowserCrawler,
   HybridCrawler,
   MediaCrawler,
   JSDOMCrawler,

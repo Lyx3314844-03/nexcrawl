@@ -514,21 +514,6 @@ function normalizeRelTokens(value) {
     .filter(Boolean);
 }
 
-function getUrlPathExtension(targetUrl) {
-  try {
-    const pathname = new URL(targetUrl).pathname;
-    const lastSegment = pathname.split('/').filter(Boolean).at(-1) ?? '';
-    const extensionIndex = lastSegment.lastIndexOf('.');
-    if (extensionIndex <= 0) {
-      return '';
-    }
-
-    return lastSegment.slice(extensionIndex).toLowerCase();
-  } catch {
-    return '';
-  }
-}
-
 function normalizeDiscoveryCandidate(candidate, parentUrl) {
   if (typeof candidate === 'string') {
     try {

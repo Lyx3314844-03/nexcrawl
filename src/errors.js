@@ -27,6 +27,8 @@ export class OmniCrawlError extends Error {
   }
 }
 
+export const NexCrawlError = OmniCrawlError;
+
 // ─── Network Errors ───────────────────────────────────────────────────────
 
 export class NetworkError extends OmniCrawlError {
