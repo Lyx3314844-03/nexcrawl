@@ -10,6 +10,37 @@
 
 它不是"保证绕过任何网站限制"的工具。遇到 SSO、扫码登录、Passkey/WebAuthn、账号风险页、Play Integrity、SafetyNet、DeviceCheck、App Attest、设备信誉和强风控时，框架会进入人机协作、合规门禁或停止自动化。
 
+## 安装
+
+支持 Windows、macOS 和 Linux 三种操作系统。详细安装指南请参考 [INSTALL.md](./INSTALL.md)。
+
+### Windows
+
+```bash
+install-windows.bat
+```
+
+### macOS
+
+```bash
+chmod +x install-macos.sh
+./install-macos.sh
+```
+
+### Linux
+
+```bash
+chmod +x install-linux.sh
+./install-linux.sh
+```
+
+### Docker
+
+```bash
+docker build -t nexcrawl .
+docker run -p 3100:3100 nexcrawl
+```
+
 ## 快速开始
 
 ```bash
