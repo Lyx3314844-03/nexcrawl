@@ -1,5 +1,5 @@
 import { getLogger } from '../utils/logger.js';
-import fetch from 'node:fetch';
+import { fetch } from 'undici';
 
 const logger = getLogger('webhook-dispatcher');
 

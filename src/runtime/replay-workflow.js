@@ -73,6 +73,182 @@ function storageTemplateForKey(key, index) {
   };
 }
 
+function normalizeRecordingWorkflowName(session = {}) {
+  const raw = String(session.name ?? session.id ?? 'login-recording').trim() || 'login-recording';
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'login-recording';
+}
+
+function toStorageSeedEntries(replayState = {}) {
+  return Object.entries(replayState ?? {})
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => ({
+      area: 'localStorage',
+      key,
+      value: typeof value === 'string' ? value : JSON.stringify(value),
+    }));
+}
+
+function toCookieEntries(cookieValues = {}, targetUrl) {
+  return Object.entries(cookieValues ?? {})
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([name, value]) => ({
+      name,
+      value: String(value),
+      ...(targetUrl ? { url: targetUrl } : {}),
+      path: '/',
+    }));
+}
+
+function normalizeScrollTarget(value) {
+  const text = String(value ?? 'bottom').toLowerCase();
+  if (text === 'up' || text === 'top') return 'top';
+  return 'bottom';
+}
+
+function normalizeReplayStep(step = {}, index = 0, fallbackUrl = null) {
+  const type = String(step.type ?? '').trim().toLowerCase();
+  switch (type) {
+    case 'navigate':
+      return {
+        type: 'navigate',
+        url: step.url ?? step.value ?? fallbackUrl ?? null,
+      };
+
+    case 'click':
+      return step.selector
+        ? {
+            type: 'click',
+            selector: step.selector,
+            waitForNavigation: step.waitForNavigation === true,
+          }
+        : null;
+
+    case 'type':
+      return step.selector
+        ? {
+            type: 'type',
+            selector: step.selector,
+            value: String(step.value ?? ''),
+            clear: step.clear !== false,
+          }
+        : null;
+
+    case 'press':
+    case 'key':
+      return {
+        type: 'press',
+        keyPress: String(step.value ?? step.keyPress ?? 'Enter'),
+      };
+
+    case 'scroll':
+      return {
+        type: 'scroll',
+        ...(step.selector ? { selector: step.selector } : {}),
+        to: normalizeScrollTarget(step.value ?? step.direction),
+      };
+
+    case 'wait':
+      return {
+        type: 'wait',
+        durationMs: Math.max(0, Number(step.durationMs ?? step.value ?? 1000) || 1000),
+      };
+
+    case 'select':
+      return step.selector
+        ? {
+            type: 'select',
+            selector: step.selector,
+            optionLabel: typeof step.value === 'string' ? step.value : undefined,
+          }
+        : null;
+
+    default:
+      return null;
+  }
+}
+
+function buildReplayStepsFromRecording(session = {}) {
+  const steps = ensureArray(session.steps)
+    .map((step, index) => normalizeReplayStep(step, index, session.url ?? null))
+    .filter(Boolean);
+
+  if (!steps.some((step) => step.type === 'navigate') && session.url) {
+    steps.unshift({ type: 'navigate', url: session.url });
+  }
+
+  return steps;
+}
+
+function collectObservedUrls(session = {}) {
+  return ensureArray(session.steps)
+    .flatMap((step) => [step.url, step.finalUrl, step.value])
+    .filter((value) => typeof value === 'string' && /^https?:\/\//i.test(value));
+}
+
+function inferReplayFinalUrl(session = {}) {
+  const candidates = collectObservedUrls(session);
+  const preferred = candidates.find((url) => !/\/(login|signin|sign-in|auth)(\/|$|\?)/i.test(url));
+  return preferred ?? candidates[candidates.length - 1] ?? null;
+}
+
+function inferSuccessSelector(session = {}) {
+  const htmlSnippets = ensureArray(session.steps)
+    .map((step) => step.html)
+    .filter((value) => typeof value === 'string' && value.trim());
+
+  for (const html of htmlSnippets) {
+    if (/id=["']logout["']/i.test(html)) return '#logout';
+    if (/id=["']account["']/i.test(html)) return '#account';
+    if (/data-testid=["']logout["']/i.test(html)) return '[data-testid="logout"]';
+    if (/data-testid=["']account["']/i.test(html)) return '[data-testid="account"]';
+    if (/(logout|sign out|my account|dashboard)/i.test(html)) {
+      return 'body';
+    }
+  }
+
+  return null;
+}
+
+function buildAuthExtractionSteps(authStatePlan = {}) {
+  const steps = [];
+  const replayKeys = Object.keys(authStatePlan.replayState ?? {});
+  for (const key of replayKeys.slice(0, 8)) {
+    steps.push({
+      type: 'extractState',
+      source: 'localStorage',
+      key,
+      saveAs: key,
+    });
+  }
+  for (const name of ensureArray(authStatePlan.requiredCookies).slice(0, 8)) {
+    steps.push({
+      type: 'extractState',
+      source: 'cookie',
+      key: name,
+      saveAs: name,
+    });
+  }
+  return steps;
+}
+
+function buildReplayBootstrap(authStatePlan = {}) {
+  const replayState = authStatePlan.replayState ?? {};
+  if (!isPlainObject(replayState) || Object.keys(replayState).length === 0) {
+    return [];
+  }
+
+  return [`
+(() => {
+  const state = ${JSON.stringify(replayState)};
+  window.__OMNICRAWL_RECORDED_AUTH_STATE = state;
+  for (const [key, value] of Object.entries(state)) {
+    try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); } catch {}
+    try { sessionStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); } catch {}
+  }
+})();
+`.trim()];
+}
+
 export function buildReplayWorkflowPatchTemplate({ workflow = {}, recipe = {} } = {}) {
   const url = firstSeedUrl(workflow);
   const recommendedMode = recipe.recommendedMode ?? workflow.mode ?? 'http';
@@ -266,4 +442,95 @@ export function buildReplayWorkflow({ workflow, recipe = {}, replayOf = null } =
   };
 
   return validateWorkflow(next);
+}
+
+export function buildReplayWorkflowFromRecording({ session, options = {} } = {}) {
+  if (!session || typeof session !== 'object') {
+    throw new TypeError('session is required');
+  }
+
+  const targetUrl = session.url ?? options.url ?? null;
+  if (!targetUrl) {
+    throw new Error('session.url is required');
+  }
+
+  const authStatePlan = session.authStatePlan ?? options.authStatePlan ?? null;
+  const inferredFinalUrl = inferReplayFinalUrl(session) ?? targetUrl;
+  const successSelector = inferSuccessSelector(session);
+  const authExtractionSteps = buildAuthExtractionSteps(authStatePlan ?? {});
+  const replaySteps = buildReplayStepsFromRecording(session);
+  if (successSelector) {
+    replaySteps.push({
+      type: 'waitForSelector',
+      selector: successSelector,
+      timeoutMs: Number(options.successTimeoutMs ?? 15000) || 15000,
+    });
+  } else {
+    replaySteps.push({
+      type: 'wait',
+      durationMs: Number(options.successTimeoutMs ?? 1500) || 1500,
+    });
+  }
+  replaySteps.push(...authExtractionSteps);
+
+  const replay = {
+    initScripts: buildReplayBootstrap(authStatePlan ?? {}),
+    storageSeeds: toStorageSeedEntries(authStatePlan?.replayState ?? {}),
+    cookies: toCookieEntries(authStatePlan?.cookieValues ?? {}, targetUrl),
+    blockResourceTypes: ['image', 'media', 'font'],
+    blockUrlPatterns: [],
+    finalUrl: inferredFinalUrl,
+    steps: replaySteps,
+  };
+
+  const workflow = {
+    name: `${normalizeRecordingWorkflowName(session)}-replay`,
+    seedUrls: [targetUrl],
+    mode: 'browser',
+    concurrency: 1,
+    maxDepth: 0,
+    timeoutMs: Number(options.timeoutMs ?? 45000) || 45000,
+    headers: {
+      ...(authStatePlan?.requiredHeaders ?? {}),
+    },
+    session: {
+      enabled: true,
+      scope: 'job',
+      persist: true,
+      isolate: true,
+      captureStorage: true,
+    },
+    browser: {
+      headless: options.headless !== false,
+      waitUntil: 'domcontentloaded',
+      sleepMs: Number(options.sleepMs ?? 800) || 800,
+      replay,
+      debug: {
+        enabled: true,
+        persistArtifacts: true,
+        captureNetwork: true,
+        captureScripts: true,
+        captureSourceMaps: true,
+        captureHooks: true,
+      },
+    },
+    plugins: [{ name: 'dedupe' }, { name: 'audit' }],
+    output: {
+      dir: 'runs/recorded-replays',
+      console: false,
+      persistBodies: true,
+    },
+    replay: {
+      source: 'login-recorder',
+      recordingId: session.id ?? null,
+      recordedAt: session.stoppedAt ?? session.createdAt ?? session.startedAt ?? null,
+      successSelector,
+      inferredFinalUrl,
+    },
+    extract: ensureArray(options.extract).length > 0
+      ? clone(options.extract)
+      : [{ name: 'title', type: 'selector', selector: 'title' }],
+  };
+
+  return validateWorkflow(workflow);
 }

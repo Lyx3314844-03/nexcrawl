@@ -294,26 +294,6 @@ export function decodeWithInferredSchema(data, schema) {
   return result;
 }
 
-/**
- * Encode a plain object into a protobuf Buffer using inferred schema.
- */
-export function encodeProtobufMessage(payload, schema) {
-  // 简化的编码器实现：在实际工程中应使用 protobufjs
-  // 此处提供一个兼容性占位，确保 GrpcCrawler 不报错
-  return Buffer.from(JSON.stringify(payload));
-}
-
-/**
- * Wraps a protobuf payload into a gRPC length-prefixed frame.
- */
-export function encodeGrpcFrame(payload) {
-  const frame = Buffer.alloc(5 + payload.length);
-  frame[0] = 0; // compressed flag
-  frame.writeUInt32BE(payload.length, 1);
-  payload.copy(frame, 5);
-  return frame;
-}
-
 // ─── Protobuf wire-format encoder ────────────────────────────────────────────
 //
 // Complements the decoder above: encodes plain JS objects into valid protobuf

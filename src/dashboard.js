@@ -457,6 +457,103 @@ export function renderDashboard() {
         <div id="sessions" class="list"></div>
       </section>
 
+      <section class="panel panel-wide">
+        <h2>平台运营面</h2>
+        <div class="meta">
+          面向长期运营的控制台：登录态诊断、协议语义推断、App 闭环计划、自愈 patch、凭证登记和审计留痕。
+        </div>
+        <div class="grid-2" style="margin-top:12px;">
+          <div class="card">
+            <strong>登录状态机</strong>
+            <textarea id="platformLoginObservation" style="min-height:150px;">{
+  "observation": {
+    "url": "https://example.com/login",
+    "html": "<form><input type=\\"password\\"><div>captcha required</div></form>"
+  },
+  "options": {
+    "accountId": "demo-account"
+  }
+}</textarea>
+            <div class="toolbar" style="margin-top:10px;">
+              <button type="button" id="platformLoginAnalyzeButton">分析登录态</button>
+            </div>
+            <div id="platformLoginOutput" class="meta"></div>
+          </div>
+          <div class="card">
+            <strong>协议语义学习</strong>
+            <select id="platformProtocolKind" style="margin-top:10px;">
+              <option value="graphql">GraphQL</option>
+              <option value="websocket">WebSocket</option>
+              <option value="grpc">gRPC / Protobuf</option>
+            </select>
+            <textarea id="platformProtocolInput" style="min-height:150px;">{
+  "schema": {
+    "queryType": "Query",
+    "mutationType": "Mutation",
+    "types": [
+      { "name": "Query", "fields": [{ "name": "searchProducts", "type": "[Product]", "args": [] }] },
+      { "name": "Mutation", "fields": [{ "name": "login", "type": "Session", "args": [{ "name": "password", "type": "String" }] }] }
+    ]
+  }
+}</textarea>
+            <div class="toolbar" style="margin-top:10px;">
+              <button type="button" id="platformProtocolAnalyzeButton">推断协议语义</button>
+            </div>
+            <div id="platformProtocolOutput" class="meta"></div>
+          </div>
+          <div class="card">
+            <strong>App 真闭环计划</strong>
+            <textarea id="platformAppPlanInput" style="min-height:150px;">{
+  "app": {
+    "packageName": "com.demo.app",
+    "apkPath": "demo.apk"
+  },
+  "capture": {
+    "reinstall": true,
+    "safetyNet": true
+  }
+}</textarea>
+            <div class="toolbar" style="margin-top:10px;">
+              <button type="button" id="platformAppPlanButton">生成 App 计划</button>
+            </div>
+            <div id="platformAppPlanOutput" class="meta"></div>
+          </div>
+          <div class="card">
+            <strong>录制自愈 Patch</strong>
+            <textarea id="platformHealingInput" style="min-height:150px;">{
+  "recording": {
+    "steps": [
+      { "type": "type", "selector": "#email", "value": "demo@example.com" },
+      { "type": "type", "selector": "#password", "value": "secret" }
+    ]
+  },
+  "failure": { "selector": "#login" },
+  "observations": [{ "success": true, "html": "<button>logout</button>" }]
+}</textarea>
+            <div class="toolbar" style="margin-top:10px;">
+              <button type="button" id="platformHealingButton">生成自愈计划</button>
+            </div>
+            <div id="platformHealingOutput" class="meta"></div>
+          </div>
+          <div class="card">
+            <strong>凭证登记</strong>
+            <div class="grid-2" style="margin-top:10px;">
+              <input id="platformCredentialTenant" value="default" placeholder="tenant id" />
+              <input id="platformCredentialName" value="api-token" placeholder="credential name" />
+            </div>
+            <input id="platformCredentialValue" style="margin-top:10px;" value="demo-secret" placeholder="secret value" />
+            <div class="toolbar" style="margin-top:10px;">
+              <button type="button" id="platformCredentialButton">登记凭证元数据</button>
+            </div>
+            <div id="platformCredentialOutput" class="meta"></div>
+          </div>
+          <div class="card">
+            <strong>审计日志</strong>
+            <div id="platformAuditLog" class="list" style="margin-top:10px;"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>App Capture</h2>
         <div id="appCaptureSessions" class="list"></div>
@@ -521,6 +618,31 @@ export function renderDashboard() {
           return;
         }
         root.innerHTML = items.map(mapItem).join('');
+      }
+
+      function parseJsonText(elementId) {
+        const raw = document.getElementById(elementId).value;
+        try {
+          return JSON.parse(raw || '{}');
+        } catch (error) {
+          throw new Error('JSON 解析失败: ' + error.message);
+        }
+      }
+
+      function renderJsonOutput(targetId, title, value) {
+        document.getElementById(targetId).innerHTML =
+          '<div class="card">' +
+            '<strong>' + escapeHtml(title) + '</strong>' +
+            '<pre style="white-space:pre-wrap;font-size:12px;">' + escapeHtml(JSON.stringify(value, null, 2)) + '</pre>' +
+          '</div>';
+      }
+
+      async function postJson(url, payload) {
+        return getJson(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
       }
 
       function totalAlerts(item) {
@@ -741,7 +863,7 @@ export function renderDashboard() {
       }
 
       async function refresh() {
-        const [health, workflows, schedules, jobs, browserPool, proxyPool, sessions, appCaptureSessions] = await Promise.all([
+        const [health, workflows, schedules, jobs, browserPool, proxyPool, sessions, appCaptureSessions, platformAudit] = await Promise.all([
           getJson('/health'),
           getJson('/workflows'),
           getJson('/schedules'),
@@ -749,7 +871,8 @@ export function renderDashboard() {
           getJson('/runtime/browser-pool'),
           getJson('/runtime/proxies'),
           getJson('/sessions'),
-          getJson('/tools/app-capture/sessions').catch(() => ({ items: [] }))
+          getJson('/tools/app-capture/sessions').catch(() => ({ items: [] })),
+          getJson('/platform/governance/audit').catch(() => ({ items: [] }))
         ]);
 
         document.getElementById('health').innerHTML =
@@ -837,6 +960,14 @@ export function renderDashboard() {
           '</div>'
         ));
 
+        renderList('platformAuditLog', (platformAudit.items || []).slice(-8).reverse(), (item) => (
+          '<div class="card">' +
+            '<strong>' + escapeHtml(item.action || 'event') + '</strong><br />' +
+            '<span class="meta">' + escapeHtml(item.at || '') + ' · actor: ' + escapeHtml(item.actor || 'unknown') + '</span><br />' +
+            '<span class="meta">tenant: ' + escapeHtml(item.tenantId || 'none') + ' · target: ' + escapeHtml(item.target || 'none') + '</span>' +
+          '</div>'
+        ));
+
         renderList('appCaptureSessions', appCaptureSessions.items || [], (item) => (
           '<div class="card">' +
             '<strong><code>' + escapeHtml(item.id || '') + '</code></strong><br />' +
@@ -882,6 +1013,65 @@ export function renderDashboard() {
           '<div class="card"><pre style="white-space:pre-wrap;font-size:12px;">' +
           escapeHtml(JSON.stringify(response.result, null, 2)) +
           '</pre></div>';
+      }
+
+      async function analyzePlatformLogin() {
+        try {
+          const response = await postJson('/platform/login/analyze', parseJsonText('platformLoginObservation'));
+          renderJsonOutput('platformLoginOutput', '登录态分析结果', response.item);
+          await refresh();
+        } catch (error) {
+          document.getElementById('platformLoginOutput').innerHTML = '<div class="meta">' + escapeHtml(error.message) + '</div>';
+        }
+      }
+
+      async function analyzePlatformProtocol() {
+        try {
+          const payload = {
+            ...parseJsonText('platformProtocolInput'),
+            kind: document.getElementById('platformProtocolKind').value
+          };
+          const response = await postJson('/platform/protocol/semantics', payload);
+          renderJsonOutput('platformProtocolOutput', '协议语义结果', response.item);
+        } catch (error) {
+          document.getElementById('platformProtocolOutput').innerHTML = '<div class="meta">' + escapeHtml(error.message) + '</div>';
+        }
+      }
+
+      async function buildPlatformAppPlan() {
+        try {
+          const response = await postJson('/platform/app-capture/plan', parseJsonText('platformAppPlanInput'));
+          renderJsonOutput('platformAppPlanOutput', 'App 闭环计划', response.item);
+        } catch (error) {
+          document.getElementById('platformAppPlanOutput').innerHTML = '<div class="meta">' + escapeHtml(error.message) + '</div>';
+        }
+      }
+
+      async function buildPlatformHealingPlan() {
+        try {
+          const response = await postJson('/platform/self-healing/patch-plan', parseJsonText('platformHealingInput'));
+          renderJsonOutput('platformHealingOutput', '自愈 Patch 计划', response.item);
+        } catch (error) {
+          document.getElementById('platformHealingOutput').innerHTML = '<div class="meta">' + escapeHtml(error.message) + '</div>';
+        }
+      }
+
+      async function createPlatformCredential() {
+        try {
+          const tenantId = document.getElementById('platformCredentialTenant').value.trim() || 'default';
+          const name = document.getElementById('platformCredentialName').value.trim() || 'credential';
+          const value = document.getElementById('platformCredentialValue').value;
+          const response = await postJson('/platform/governance/credentials', {
+            tenantId,
+            name,
+            value,
+            scope: ['dashboard']
+          });
+          renderJsonOutput('platformCredentialOutput', '凭证元数据', response.item);
+          await refresh();
+        } catch (error) {
+          document.getElementById('platformCredentialOutput').innerHTML = '<div class="meta">' + escapeHtml(error.message) + '</div>';
+        }
       }
 
       async function exportJob(jobId, kind, format) {
@@ -1254,6 +1444,11 @@ export function renderDashboard() {
         event.preventDefault();
         await previewExtraction();
       });
+      document.getElementById('platformLoginAnalyzeButton').addEventListener('click', analyzePlatformLogin);
+      document.getElementById('platformProtocolAnalyzeButton').addEventListener('click', analyzePlatformProtocol);
+      document.getElementById('platformAppPlanButton').addEventListener('click', buildPlatformAppPlan);
+      document.getElementById('platformHealingButton').addEventListener('click', buildPlatformHealingPlan);
+      document.getElementById('platformCredentialButton').addEventListener('click', createPlatformCredential);
       window.addEventListener('message', (event) => {
         const payload = event.data;
         if (!payload || payload.channel !== 'omnicrawl-field-picker') {

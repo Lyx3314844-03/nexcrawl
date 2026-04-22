@@ -2,6 +2,7 @@ import http from 'node:http';
 import https from 'node:https';
 import http2 from 'node:http2';
 import tls from 'node:tls';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import {
   getBrowserTLSProfile,
   createTLSAgent,
@@ -114,6 +115,54 @@ function requestViaForwardProxy(targetUrl, request, headers, proxy) {
             status: response.statusCode ?? 500,
             headers: response.headers,
             body,
+          });
+        } catch (error) {
+          reject(error);
+        }
+      },
+    );
+
+    req.setTimeout(request.timeoutMs ?? 30000, () => {
+      req.destroy(new Error('request timed out'));
+    });
+    req.on('error', reject);
+    if (request.body) {
+      req.write(request.body);
+    }
+    req.end();
+  });
+}
+
+function requestViaSocksProxy(targetUrl, request, headers, proxy) {
+  const agent = new SocksProxyAgent(proxy.server);
+  const client = clientForProtocol(targetUrl.protocol);
+
+  return new Promise((resolve, reject) => {
+    const req = client.request(
+      {
+        host: targetUrl.hostname,
+        port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+        path: `${targetUrl.pathname}${targetUrl.search}`,
+        method: request.method ?? 'GET',
+        headers: {
+          ...headers,
+          host: targetUrl.host,
+        },
+        agent,
+      },
+      async (response) => {
+        try {
+          const body = await collectBody(response);
+          resolve({
+            finalUrl: targetUrl.href,
+            status: response.statusCode ?? 500,
+            headers: response.headers,
+            setCookieHeaders: setCookieArray(response.headers),
+            body,
+            transport: {
+              protocol: targetUrl.protocol === 'https:' ? 'http/1.1' : 'http/1.1',
+              proxyProtocol: new URL(proxy.server).protocol.replace(':', ''),
+            },
           });
         } catch (error) {
           reject(error);
@@ -268,6 +317,11 @@ function requestDirectHttps(targetUrl, request, headers, tlsProfile) {
 }
 
 async function requestThroughProxy(targetUrl, request, headers, proxy) {
+  const proxyProtocol = new URL(proxy.server).protocol.toLowerCase();
+  if (proxyProtocol.startsWith('socks')) {
+    return requestViaSocksProxy(targetUrl, request, headers, proxy);
+  }
+
   if (targetUrl.protocol === 'http:') {
     return requestViaForwardProxy(targetUrl, request, headers, proxy);
   }

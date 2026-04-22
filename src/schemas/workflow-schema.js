@@ -52,7 +52,7 @@ function normalizeRateLimiterInput(value) {
 const extractorRuleSchema = z
   .object({
     name: z.string().min(1),
-    type: z.enum(['regex', 'json', 'script', 'selector', 'links', 'surface', 'reverse', 'xpath', 'media']),
+    type: z.enum(['regex', 'json', 'script', 'selector', 'links', 'surface', 'reverse', 'xpath', 'media', 'network']),
     format: z.enum(['url', 'object']).optional(),
     pattern: z.string().optional(),
     flags: z.string().default(''),
@@ -77,6 +77,15 @@ const extractorRuleSchema = z
     includeJsonLd: z.boolean().optional(),
     includeNetwork: z.boolean().optional(),
     includeResponse: z.boolean().optional(),
+    transport: z.string().optional(),
+    transports: z.array(z.string()).optional(),
+    urlPattern: z.string().optional(),
+    preferUrlPatterns: z.array(z.string()).optional(),
+    avoidUrlPatterns: z.array(z.string()).optional(),
+    selection: z.enum(['payload', 'primary-data']).optional(),
+    source: z.enum(['request', 'response']).optional(),
+    requireJson: z.boolean().optional(),
+    includeMeta: z.boolean().optional(),
     maxItems: z.number().int().positive().max(500).default(50),
   })
   .passthrough();
@@ -115,12 +124,32 @@ const proxyServerSchema = z
   .passthrough()
   .transform(({ url, ...proxy }) => proxy);
 
+const grpcRequestConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    service: z.string().min(1).optional(),
+    method: z.string().min(1).optional(),
+    path: z.string().min(1).optional(),
+    metadata: z.record(z.string()).default({}),
+    descriptorPaths: z.array(z.string().min(1)).default([]),
+    requestType: z.string().min(1).optional(),
+    responseType: z.string().min(1).optional(),
+    requestSchema: z.any().optional(),
+    responseSchema: z.any().optional(),
+    stream: z.boolean().default(false),
+    bodyEncoding: z.enum(['auto', 'json', 'protobuf-base64', 'grpc-frame-base64', 'utf8']).default('auto'),
+    maxRetries: z.number().int().nonnegative().max(10).optional(),
+    retryDelayMs: z.number().int().nonnegative().max(120000).optional(),
+  })
+  .passthrough();
+
 const seedRequestSchema = z
   .object({
     url: z.string().url(),
     method: z.string().optional(),
     headers: z.record(z.string()).default({}),
     body: z.string().optional(),
+    grpc: grpcRequestConfigSchema.optional(),
     label: z.string().nullable().optional(),
     priority: z.number().int().min(-1000).max(1000).optional(),
     userData: z.record(z.any()).default({}),
@@ -424,6 +453,38 @@ const reverseSchema = z
   })
   .default({});
 
+const browserAutoScrollSchema = z.preprocess(
+  (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return { __provided: false };
+    }
+    return {
+      __provided: Object.keys(value).length > 0,
+      ...value,
+    };
+  },
+  z
+    .object({
+      __provided: z.boolean().default(false),
+      enabled: z.boolean().optional(),
+      maxScrolls: z.number().int().positive().max(500).default(60),
+      delayMs: z.number().int().nonnegative().max(30000).default(400),
+      stabilityThresholdMs: z.number().int().nonnegative().max(120000).default(2000),
+      maxStableIterations: z.number().int().positive().max(50).default(4),
+      scrollStep: z.string().optional(),
+      loadMoreSelector: z.string().optional(),
+      scrollTargetSelector: z.string().optional(),
+      itemSelector: z.string().optional(),
+      observeLazyContainers: z.boolean().default(true),
+      requireBottom: z.boolean().default(true),
+      sampleItems: z.number().int().positive().max(50).default(12),
+    })
+    .transform(({ __provided, ...value }) => ({
+      ...value,
+      enabled: value.enabled ?? __provided,
+    })),
+);
+
 export const workflowSchema = z
   .object({
     name: z.string().min(1),
@@ -443,6 +504,7 @@ export const workflowSchema = z
         body: z.string().optional(),
       })
       .default({ method: 'GET' }),
+    grpc: grpcRequestConfigSchema.optional(),
     websocket: z
       .object({
         sendMessage: z.any().optional(),
@@ -473,6 +535,7 @@ export const workflowSchema = z
           }),
         executablePath: z.string().optional(),
         launchArgs: z.array(z.string()).default([]),
+        autoScroll: browserAutoScrollSchema,
         debug: z
           .object({
             enabled: z.boolean().default(true),

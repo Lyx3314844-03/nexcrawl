@@ -3,6 +3,7 @@ import { fetchWithHttp } from '../fetchers/http-fetcher.js';
 import { fetchWithCheerio } from '../fetchers/cheerio-fetcher.js';
 import { fetchWithBrowser } from '../fetchers/browser-fetcher.js';
 import { fetchWebSocketResponse } from '../fetchers/ws-fetcher.js';
+import { fetchGrpcResponse } from './grpc-crawler.js';
 import { assessResultQuality } from './quality-monitor.js';
 import { buildResultIdentitySnapshot, inspectResultDiagnostics } from './reverse-diagnostics.js';
 import { computeRetryDelayMs, parseRetryAfterMs } from './retry-policy.js';
@@ -395,6 +396,10 @@ export async function executeFetchAttempt(runner, { mode, request, item }) {
       ...(runner.config.workflow.websocket ?? {}),
       ...(request.websocket ?? {}),
     });
+  }
+
+  if (request.grpc?.enabled === true || (request.grpc?.service && request.grpc?.method)) {
+    return fetchGrpcResponse(request, runner.config.workflow.grpc ?? {});
   }
 
   if (mode === 'browser') {

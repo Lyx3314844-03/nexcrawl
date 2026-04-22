@@ -1,110 +1,133 @@
 <p align="center">
-  <img src="logo.svg" width="220" alt="NexCrawl Banner" />
+  <img src="logo.svg" width="180" alt="OmniCrawl" />
 </p>
 
-<h1 align="center">NexCrawl: The Infinite Intelligence Platform</h1>
+# OmniCrawl / NexCrawl
 
-<p align="center">
-  <b>The world's most comprehensive framework for Web, App, and API data extraction.</b><br>
-  Built for industrial-scale intelligence, military-grade stealth, and zero-maintenance AI automation.
-</p>
+面向 Web、API、协议和 App 场景的数据采集平台。
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Version-1.2.0-blueviolet?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/AI-Autonomous_Agents-orange?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Anti--Bot-WAF_Slayer-red?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Mobile-Native_Interception-green?style=for-the-badge" />
-</p>
+它提供普通网页抓取、浏览器抓取、接口抓取、协议语义分析、登录态维护、账号/代理/设备资源管理、任务调度、数据导出、控制台、审计和治理能力。
 
----
+它不是"保证绕过任何网站限制"的工具。遇到 SSO、扫码登录、Passkey/WebAuthn、账号风险页、Play Integrity、SafetyNet、DeviceCheck、App Attest、设备信誉和强风控时，框架会进入人机协作、合规门禁或停止自动化。
 
-## 🌌 The Periodic Table of NexCrawl Capabilities
+## 快速开始
 
-### 1. 🧠 Intelligence Layer (The Brain)
-*   **Zero-Selector Extraction**: Direct HTML-to-JSON reasoning using LLMs (GPT/Gemini).
-*   **Semantic DOM Compression**: Proprietary algorithm to strip 90% of HTML noise for cost-efficient AI processing.
-*   **Autonomous Task Agent**: Goal-driven navigation (Recursive Task Decomposition) to handle complex interactions.
-*   **Self-Healing Pipelines**: Automatically detects and repairs extraction rules when a site's UI changes.
-*   **MFA Automator**: Built-in logic to intercept and auto-fill SMS/Email verification codes.
-
-### 2. 🛡️ Ghost Stealth Stack (The Cloak)
-*   **VStealth Runtime**: Deep sanitization of the JS environment to wipe all traces of Playwright/Puppeteer/Selenium.
-*   **Hardware Entropy Injection**: Dynamic noise injection for **WebGL**, **Canvas**, and **AudioContext** fingerprints.
-*   **TLS/JA3/JA4 Spoofing**: Fully customizable TLS handshake signatures to mimic any modern browser or mobile device.
-*   **HTTP/2 Frame Fingerprinting**: Precise control over H2 settings, windows, and stream priorities to defeat server-side OS fingerprinting.
-*   **Intl/Locale Consistency**: Synchronizes browser timezone, language, and hardware concurrency with proxy IP location.
-
-### 3. 📱 Mobile & Native Lab (The Bridge)
-*   **Native App Crawler**: Direct automation of Android and iOS apps via Appium integration.
-*   **Frida Bridge**: Real-time native Hooking to bypass **SSL Pinning**, Root checks, and emulator detection.
-*   **WebView Interceptor**: Seamlessly transition between Native App contexts and embedded WebViews.
-*   **Binary Protocol Inferrer**: Automatically reconstructs Protobuf schemas from raw gRPC/HTTP2 streams.
-*   **Native App Routing**: Orchestrates mobile app flows using the same middleware-based Router as web crawls.
-
-### 4. 🛠️ Reverse Engineering Toolkit (The X-Ray)
-*   **V8 Bytecode Analyzer**: Static and dynamic analysis of compiled `.jsc` (bytenode) files.
-*   **Heap Memory Forensics**: Automated RAM scanning to extract dynamic encryption keys and session tokens.
-*   **Runtime Sentinel**: Transparent monitoring of Node.js system calls (`fs`, `net`, `crypto`).
-*   **Control Flow Deobfuscator**: Built-in tools for unwinding complex JS obfuscation and string-array encoding.
-*   **WASM Reversing**: Extraction and analysis of WebAssembly modules used in modern signature generation.
-
-### 5. ⛓️ Industrial Ops & Scaling (The Exoskeleton)
-*   **Queue Sharding**: MD5-based URL partitioning across Redis clusters for billion-scale task management.
-*   **Sharded DB Sinks**: High-throughput storage with automated table partitioning for PostgreSQL, MySQL, and Mongo.
-*   **Browser Pool Guard**: Self-healing service that monitors instance health and recycles leaky or zombie processes.
-*   **Predictive Autoscaling**: Adjusts concurrency in real-time based on system load and target site pressure.
-*   **Data Integrity Guard**: Integrated Zod-based validation pipelines to block "dirty data" from entering the database.
-
-### 6. 📡 Multi-Mode Engines (The Heart)
-*   **HttpCrawler**: Lightning-fast, stateless fetcher for high-speed API and HTML scraping.
-*   **BrowserCrawler**: Full-render engine for heavy SPA, Shadow DOM, and Canvas-based sites.
-*   **GrpcCrawler**: Native transport for binary gRPC services with auto-decoding.
-*   **TorCrawler**: Built-in anonymity circuits for dark-web (.onion) access and IP rotation.
-*   **WebSocket/GraphQL**: Native support for modern real-time and query-based protocols.
-*   **StreamRecorder**: Live-stream capturing (RTMP/HLS) with automated segmenting via FFmpeg.
-
----
-
-## 💻 Installation Matrix
-
-| Operating System | Quick Install Command | Requirements |
-| :--- | :--- | :--- |
-| **Windows** | `npm install -g nexcrawl && npx playwright install` | Node.js v20+ |
-| **macOS** | `brew install node && npm install -g nexcrawl` | Homebrew |
-| **Linux** | `sudo apt install nodejs ffmpeg libnss3 && npm install -g nexcrawl` | Ubuntu/Debian |
-
----
-
-## 🚀 The NexCrawl Workflow
-
-```javascript
-import { NexCrawler, AiExtractor, NativeBridge, ShardedDbSink } from 'nexcrawl';
-
-// 1. Initialize professional-grade components
-const crawler = new NexCrawler({ stealth: { vStealth: true } });
-const extractor = new AiExtractor();
-const sink = new ShardedDbSink({ shardType: 'daily' });
-
-// 2. Perform intelligence-driven extraction
-const response = await crawler.fetch('https://complex-target.com');
-const data = await extractor.extract(response.body, {
-  market_trends: [{ topic: "string", sentiment: "number" }]
-});
-
-// 3. Stream to high-scale storage
-await sink.push(data);
+```bash
+npm install
+npm start
 ```
 
----
+打开控制台：
 
-## 📄 Licensing & Ecosystem
-*   **License**: MIT
-*   **Full Documentation**: [./docs](./docs)
-*   **API Reference**: [./docs/API_REFERENCE.md](./docs/API_REFERENCE.md)
-*   **Industrial Guide**: [./docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+```text
+http://127.0.0.1:3100/dashboard
+```
 
----
+运行示例 workflow：
 
-## 🌍 Connect with NexCrawl
-GitHub: [https://github.com/Lyx3314844-03/nexcrawl](https://github.com/Lyx3314844-03/nexcrawl)
-Issues: [Submit a Bug Report](https://github.com/Lyx3314844-03/nexcrawl/issues)
+```bash
+node src/cli.js run examples/demo.workflow.json
+```
+
+查看框架能力：
+
+```bash
+node src/cli.js capabilities
+```
+
+从目标描述直接脚手架 workflow：
+
+```bash
+node src/cli.js scaffold target.json --output generated.workflow.json
+```
+
+`target.json` 可以是 URL/Body/Header 驱动的 universal target 描述，例如 GraphQL、WebSocket、普通页面或 JSON API。
+
+如果目标被识别为 gRPC/Protobuf，CLI 现在会直接输出可执行的 `.workflow.json`，通过内置 gRPC transport 进入现有任务、调度和历史链路。
+
+## 什么时候用它
+
+| 目标 | 可用能力 |
+| --- | --- |
+| 普通 HTML 页面 | HTTP / Cheerio 抓取、CSS/regex/surface 提取 |
+| JS 渲染页面 | 浏览器抓取、debug capture、session storage/cookie |
+| JSON API | HTTP API crawler、JSON path 提取 |
+| GraphQL | endpoint 探测、操作语义排序、分页提示 |
+| WebSocket | 订阅模型、心跳、错误恢复推断 |
+| gRPC/Protobuf | 样本聚类、字段语义提示、gRPC crawler |
+| 登录后页面 | auth handler、session store、login recorder、replay workflow |
+| SSO/扫码/Passkey/风险页 | interactive auth plan + human challenge |
+| 原生 App | device pool、App 执行计划、Appium/Frida/mitmproxy helper |
+| 强风控/attestation | compliance gate，不做绕过 |
+| 平台运营 | Dashboard、任务历史、回放、repair、自愈 patch |
+| 治理 | 多租户、RBAC、配额、账号池、凭证加密、审计 |
+
+## 万能规划器
+
+目标类型不确定时，先用 universal planner：
+
+```bash
+curl -s http://127.0.0.1:3100/platform/universal/plan \
+  -H "content-type: application/json" \
+  -d "{\"url\":\"https://example.com/graphql\",\"body\":\"mutation Login { login { token } }\"}"
+```
+
+它会返回推荐 lanes，例如：
+
+- `http-crawl`
+- `browser-crawl`
+- `graphql-semantics`
+- `websocket-semantics`
+- `grpc-semantics`
+- `login-state-machine`
+- `interactive-auth`
+- `mobile-app-execution`
+- `anti-bot-lab`
+- `attestation-compliance`
+
+## CLI
+
+```bash
+node src/cli.js run <workflow.json>
+node src/cli.js serve --port 3100
+node src/cli.js scaffold target.json --output generated.workflow.json
+node src/cli.js init ./my-crawler
+node src/cli.js register <workflow.json> --id my-workflow
+node src/cli.js workflows
+node src/cli.js history
+node src/cli.js sessions
+node src/cli.js proxies
+node src/cli.js capabilities
+```
+
+## 文档
+
+当前文档入口：
+
+- [文档索引](./docs/README.md)
+- [中文快速上手](./docs/QUICK_START_ZH.md)
+- [能力矩阵与边界](./docs/CAPABILITIES.md)
+- [Workflow 编写指南](./docs/WORKFLOW_GUIDE.md)
+- [平台 API 指南](./docs/PLATFORM_API.md)
+- [运营与治理](./docs/OPERATIONS_AND_GOVERNANCE.md)
+- [执行器扩展指南](./docs/EXECUTOR_EXTENSIONS.md)
+- [安全与合规边界](./docs/SAFETY_BOUNDARIES.md)
+
+## 安全边界
+
+请只采集你有权访问的数据。框架不会提供绕过访问控制、伪造 attestation、破解账号风险页或规避第三方安全机制的保证。
+
+生产环境建议：
+
+- 设置 `OMNICRAWL_API_KEY` 保护 HTTP API。
+- 设置 `OMNICRAWL_VAULT_KEY` 加密本地凭证。
+- 使用多租户、RBAC、配额隔离资源。
+- 审计 `.omnicrawl/audit.ndjson`。
+- 为失败率、登录态、账号池、设备池和告警队列配置监控。
+
+## 开发验证
+
+```bash
+npm run lint
+npm test
+```

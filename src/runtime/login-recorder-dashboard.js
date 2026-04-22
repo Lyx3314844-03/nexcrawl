@@ -163,6 +163,14 @@ function renderActiveRecording(recording) {
             </div>
           `).join('')}
         </div>
+        ${recording.authStatePlan ? `
+          <div style="margin-top: 16px;">
+            <h3 style="font-size: 16px; margin: 8px 0;">Auth Signals</h3>
+            <p class="meta">Login wall: <strong>${recording.authStatePlan.loginWallDetected ? 'yes' : 'no'}</strong></p>
+            <p class="meta">Cookies: <strong>${(recording.authStatePlan.requiredCookies || []).join(', ') || 'none'}</strong></p>
+            <p class="meta">CSRF fields: <strong>${(recording.authStatePlan.csrfFields || []).join(', ') || 'none'}</strong></p>
+          </div>
+        ` : ''}
       </div>
     </div>
   `;
@@ -181,10 +189,13 @@ function renderSessionList(sessions) {
               <div>
                 <strong>${session.name || 'Unnamed Session'}</strong>
                 <p class="meta">${session.steps?.length || 0} steps · ${new Date(session.createdAt).toLocaleString()}</p>
+                ${session.authStatePlan ? `<p class="meta">Auth hints: cookies=${(session.authStatePlan.requiredCookies || []).length}, csrf=${(session.authStatePlan.csrfFields || []).length}, loginWall=${session.authStatePlan.loginWallDetected ? 'yes' : 'no'}</p>` : ''}
               </div>
               <div>
                 <button class="btn" onclick="saveSession('${session.id}')" style="font-size: 12px; padding: 6px 12px;">✏ Rename</button>
                 <a href="/api/login-recorder/sessions/${session.id}/export" class="btn" style="font-size: 12px; padding: 6px 12px; text-decoration: none;">⬇ Export</a>
+                <a href="/api/login-recorder/sessions/${session.id}/workflow" class="btn" style="font-size: 12px; padding: 6px 12px; text-decoration: none;">⚙ Workflow</a>
+                <a href="/api/login-recorder/sessions/${session.id}/repair-plan" class="btn" style="font-size: 12px; padding: 6px 12px; text-decoration: none;">🩹 Repair</a>
               </div>
             </div>
           </div>

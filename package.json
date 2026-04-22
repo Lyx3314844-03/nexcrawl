@@ -2,7 +2,7 @@
   "name": "nexcrawl",
   "version": "1.2.0",
   "type": "module",
-  "description": "The Ultimate Web/App Intelligence & Data Extraction Framework. Built-in AI reasoning, native mobile automation, binary protocol reverse engineering, and advanced anti-bot stealth.",
+  "description": "Web/API/App data collection platform with workflow orchestration, protocol analysis, session governance, and compliance-aware automation.",
   "bin": {
     "nexcrawl": "./src/cli.js"
   },
@@ -11,7 +11,7 @@
     "run:demo": "node src/cli.js run examples/demo.workflow.json",
     "test": "node --test-force-exit --test",
     "test:reverse": "node --test-force-exit --test tests/reverse/*.test.js",
-    "lint": "node --check src/api/*.js src/runtime/*.js",
+    "lint": "node scripts/lint-syntax.js",
     "bench": "node src/runtime/benchmark.js",
     "docker": "docker build -t nexcrawl ."
   },

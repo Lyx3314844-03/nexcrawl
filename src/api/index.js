@@ -29,6 +29,9 @@ export { Router } from './router.js';
 export { CrawlContextImpl as CrawlContext } from './crawl-context.js';
 export { ItemPipeline } from './item-pipeline.js';
 export { GracefulShutdown } from './graceful-shutdown.js';
+export { MfaHandler, solveLoginMfa } from './mfa-handler.js';
+export { createAuthHandler } from '../middleware/auth-handler.js';
+export { buildWorkflowFromTemplate, buildWorkflowFromUniversalTarget, buildPreviewWorkflow, getWorkflowTemplateCatalog } from '../runtime/workflow-templates.js';
 export {
   HttpCrawler,
   CheerioCrawler,
@@ -41,9 +44,12 @@ export {
   SitemapCrawler,
   GraphQLCrawler,
   WebSocketCrawler,
+  UniversalCrawler,
   PuppeteerCrawler,
   PuppeteerCoreCrawler,
   PlaywrightCrawler,
   PlaywrightCoreCrawler,
   PatchrightCrawler,
+  detectUniversalSourceType,
+  inferUniversalSourceProfile,
 } from './crawler-presets.js';

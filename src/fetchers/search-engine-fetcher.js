@@ -78,9 +78,9 @@ const ENGINE_CONFIGS = {
  * @param {object} [opts.headers] - Additional request headers
  * @returns {Promise<{results: Array<{title: string, url: string, snippet: string, position: number}>, totalResults: number}>}
  */
-export async function fetchSearchResults(opts) {
+export async function fetchSearchResults(opts = {}) {
   const {
-    engine = 'google',
+    engine,
     query,
     maxPages = 3,
     language,
@@ -89,6 +89,7 @@ export async function fetchSearchResults(opts) {
     headers: extraHeaders = {},
   } = opts;
 
+  if (!engine) throw new AppError(400, 'Search engine is required');
   if (!query) throw new AppError(400, 'Search query is required');
 
   const cfg = ENGINE_CONFIGS[engine];

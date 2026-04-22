@@ -9,6 +9,11 @@ export class AiExtractor {
     this.tokenLimit = options.tokenLimit || 32000;
   }
 
+  static async extract(html, schema, options = {}) {
+    const extractor = new AiExtractor(options);
+    return extractor.extract(html, schema);
+  }
+
   async extract(html, schema) {
     logger.info('Performing semantic extraction...', { model: this.model });
     
@@ -40,4 +45,26 @@ export class AiExtractor {
       .replace(/ (?:id|class|data-[a-z0-9-]+)="[^"]*"/gi, (match) => match) // 保留属性
       .trim();
   }
+}
+
+/**
+ * Convenience helper: attach AI extraction to a crawler context.
+ * @param {object} ctx - Crawl context with on/emit methods
+ * @param {object} [options] - AiExtractor options
+ * @returns {AiExtractor}
+ */
+export function useAiExtraction(ctx, options = {}) {
+  const extractor = new AiExtractor(options);
+  if (ctx?.on) {
+    ctx.on('pageLoaded', async (page) => {
+      try {
+        const result = await extractor.extract(page.html, options.schema || {});
+        if (result && ctx?.emit) ctx.emit('aiExtracted', result);
+      } catch (e) {
+        const logger = getLogger('ai-extractor');
+        logger.debug('useAiExtraction pageLoaded handler error: ' + e.message);
+      }
+    });
+  }
+  return extractor;
 }

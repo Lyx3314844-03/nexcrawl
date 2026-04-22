@@ -8,6 +8,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http2 from 'node:http2';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   GrpcCrawler,
   GrpcConnectionPool,
@@ -17,6 +20,7 @@ import {
   parseGrpcFrame,
   parseAllGrpcFrames,
 } from '../src/runtime/grpc-crawler.js';
+import { runWorkflow } from '../src/runtime/job-runner.js';
 import {
   encodeProtobufMessage,
   encodeGrpcFrame,
@@ -219,10 +223,10 @@ test('GrpcCrawler — constructor with custom metadata', () => {
 test('GrpcCrawler — constructor with custom retry config', () => {
   const crawler = new GrpcCrawler({
     endpoint: 'localhost:50051',
-    retry: { maxRetries: 5, backoff: 'exponential' },
+    retry: { maxRetries: 5, backoffMs: 200 },
   });
-  assert.equal(crawler.retry.maxRetries, 5);
-  assert.equal(crawler.retry.backoff, 'exponential');
+  assert.equal(crawler.maxRetries, 5);
+  assert.equal(crawler.retryDelayMs, 200);
 });
 
 test('GrpcCrawler — registerSchema stores schemas', () => {
@@ -231,7 +235,7 @@ test('GrpcCrawler — registerSchema stores schemas', () => {
   const resSchema = { fields: [{ fieldNumber: 1, name: 'name', type: 'string', repeated: false }] };
 
   crawler.registerSchema('myservice', 'MyMethod', resSchema, reqSchema);
-  assert.ok(crawler.schemas.has('myservice/MyMethod'));
+  assert.ok(crawler.schemas.has('/myservice/MyMethod'));
 });
 
 // ─── Integration: unary RPC against mock server ──────────────────────────────
@@ -279,6 +283,161 @@ test('integration: unary RPC with mock gRPC server', async (t) => {
   assert.equal(result.grpcStatus, GRPC_STATUS.OK);
 
   await crawler.close();
+});
+
+test('integration: workflow runner executes gRPC seed requests end-to-end', async (t) => {
+  const port = 18092;
+  const responseSchema = {
+    fields: [
+      { fieldNumber: 1, name: 'greeting', type: 'string', repeated: false },
+    ],
+  };
+  const requestSchema = {
+    fields: [
+      { fieldNumber: 1, name: 'name', type: 'string', repeated: false },
+    ],
+  };
+
+  const server = await createMockGrpcServer(port, async (stream) => {
+    await collectStream(stream);
+    const responsePayload = buildTestPayload({ greeting: 'Hello from workflow' }, responseSchema);
+    stream.respond({
+      ':status': 200,
+      'content-type': 'application/grpc+proto',
+    });
+    stream.write(encodeGrpcFrame(responsePayload));
+    stream.end();
+  });
+
+  const root = await mkdtemp(join(tmpdir(), 'omnicrawl-grpc-workflow-'));
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const workflow = {
+    name: 'grpc-workflow',
+    seedUrls: [`http://127.0.0.1:${port}`],
+    mode: 'http',
+    request: {
+      method: 'POST',
+    },
+    grpc: {
+      enabled: true,
+      service: 'test.Greeter',
+      method: 'SayHello',
+      requestSchema,
+      responseSchema,
+    },
+    seedRequests: [{
+      url: `http://127.0.0.1:${port}`,
+      method: 'POST',
+      body: JSON.stringify({ name: 'Workflow' }),
+      grpc: {
+        service: 'test.Greeter',
+        method: 'SayHello',
+        requestSchema,
+        responseSchema,
+      },
+    }],
+    extract: [
+      { name: 'payload', type: 'script', code: 'return json;' },
+      { name: 'greeting', type: 'json', path: 'data.greeting' },
+    ],
+    output: {
+      dir: 'runs',
+      console: false,
+      persistBodies: true,
+    },
+  };
+
+  const summary = await runWorkflow(workflow, { projectRoot: root });
+  const resultsRaw = await readFile(join(summary.runDir, 'results.ndjson'), 'utf8');
+  const results = resultsRaw.trim().split('\n').map((line) => JSON.parse(line));
+
+  assert.equal(summary.status, 'completed');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].extracted.greeting, 'Hello from workflow');
+  assert.equal(results[0].status, 200);
+});
+
+test('integration: workflow runner resolves gRPC method and schemas from descriptorPaths', async (t) => {
+  const port = 18094;
+  const root = await mkdtemp(join(tmpdir(), 'omnicrawl-grpc-descriptor-'));
+  const protoPath = join(root, 'echo.proto');
+
+  await writeFile(protoPath, `
+    syntax = "proto3";
+    message PingRequest {
+      string query = 1;
+    }
+    message PingReply {
+      string answer = 1;
+    }
+    service EchoService {
+      rpc Ping (PingRequest) returns (PingReply);
+    }
+  `);
+
+  const responseSchema = {
+    fields: [
+      { fieldNumber: 1, name: 'answer', type: 'string', repeated: false },
+    ],
+  };
+
+  const server = await createMockGrpcServer(port, async (stream) => {
+    await collectStream(stream);
+    const responsePayload = buildTestPayload({ answer: 'descriptor-ok' }, responseSchema);
+    stream.respond({
+      ':status': 200,
+      'content-type': 'application/grpc+proto',
+    });
+    stream.write(encodeGrpcFrame(responsePayload));
+    stream.end();
+  });
+
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const workflow = {
+    name: 'grpc-descriptor-workflow',
+    seedUrls: [`http://127.0.0.1:${port}`],
+    mode: 'http',
+    request: {
+      method: 'POST',
+    },
+    grpc: {
+      enabled: true,
+      path: '/EchoService/Ping',
+      descriptorPaths: [protoPath],
+    },
+    seedRequests: [{
+      url: `http://127.0.0.1:${port}`,
+      method: 'POST',
+      body: JSON.stringify({ query: 'hello' }),
+      grpc: {
+        path: '/EchoService/Ping',
+        descriptorPaths: [protoPath],
+      },
+    }],
+    extract: [
+      { name: 'answer', type: 'json', path: 'data.answer' },
+    ],
+    output: {
+      dir: 'runs',
+      console: false,
+      persistBodies: true,
+    },
+  };
+
+  const summary = await runWorkflow(workflow, { projectRoot: root });
+  const resultsRaw = await readFile(join(summary.runDir, 'results.ndjson'), 'utf8');
+  const results = resultsRaw.trim().split('\n').map((line) => JSON.parse(line));
+
+  assert.equal(summary.status, 'completed');
+  assert.equal(results[0].extracted.answer, 'descriptor-ok');
 });
 
 // ─── Integration: server-streaming RPC ────────────────────────────────────────

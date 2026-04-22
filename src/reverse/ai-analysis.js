@@ -735,6 +735,55 @@ export function classifyProtectionSurface(payload = {}) {
   };
 }
 
+/**
+ * Perform comprehensive AI-powered surface analysis combining obfuscation detection,
+ * API parameter inference, response schema analysis, and protection classification.
+ *
+ * @param {Record<string, unknown>} [payload={}]
+ * @returns {Promise<AiSurfaceAnalysisResult>}
+ */
+export async function analyzeAISurface(payload = {}) {
+  // Prefer explicit code/source; if only HTML is provided, extract inline <script> blocks.
+  const rawSource = getString(payload.source ?? payload.code ?? payload.html ?? payload.body, '');
+  const isHtml = typeof payload.html === 'string' && !payload.code && !payload.source;
+  const source = isHtml ? extractInlineScriptCode(rawSource) : rawSource;
+  const headers = getObject(payload.headers);
+  const status = Number(payload.status ?? 200);
+  const body = normalizeBody(payload);
+
+  // Run individual analysis functions
+  const obfuscation = source
+    ? detectJsObfuscationSnippets(source, { maxLiterals: 60, maxIdentifiers: 40 })
+    : { detected: false, confidence: 'none', recognizedPatterns: [], suspiciousIdentifiers: [], evidence: {} };
+
+  const apiParameters = source
+    ? inferApiParameterStructure(source, { maxEndpoints: 15 })
+    : { endpoints: [], requestShapes: [], signatureFunctions: [] };
+
+  const responseSchema = inferResponseSchema(payload);
+
+  const protection = classifyProtectionSurface({ status, headers, body });
+
+  // Build AI prompts if provider is available
+  const report = { obfuscation, apiParameters, responseSchema, protection };
+  const prompts = buildAiPrompts(report);
+
+  // Attempt to run AI provider if configured
+  const aiConfig = payload.ai ?? { enabled: false };
+  const aiResult = await maybeRunAiProvider(aiConfig, prompts);
+
+  return {
+    kind: 'ai-surface-analysis',
+    target: payload.target ?? null,
+    obfuscation,
+    apiParameters,
+    responseSchema,
+    protection,
+    ai: aiResult,
+    prompts: aiResult.executed ? null : prompts,
+  };
+}
+
 function buildAiPrompts(report) {
   const compactEvidence = {
     obfuscation: {
@@ -786,6 +835,7 @@ async function maybeRunAiProvider(aiConfig, promptPayload) {
       executed: false,
       summary: null,
       error: null,
+      prompt: promptPayload,
       advisory: aiConfig?.enabled
         ? 'No ai provider was supplied. Use the returned prompt payload with your own LLM client.'
         : null,
@@ -811,6 +861,7 @@ async function maybeRunAiProvider(aiConfig, promptPayload) {
       executed: true,
       summary: response,
       error: null,
+      prompt: promptPayload,
       advisory: null,
     };
   } catch (error) {
@@ -819,6 +870,7 @@ async function maybeRunAiProvider(aiConfig, promptPayload) {
       executed: true,
       summary: null,
       error: error?.message ?? String(error),
+      prompt: promptPayload,
       advisory: null,
     };
   }

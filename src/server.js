@@ -35,13 +35,26 @@ import { ReverseLabManager } from './reverse/reverse-lab-manager.js';
 import { analyzeTrends } from './runtime/trend-analyzer.js';
 import { AlertOutboxService } from './runtime/alert-outbox.js';
 import { applyWorkflowPatch, buildReplayWorkflow, buildReplayWorkflowPatchTemplate } from './runtime/replay-workflow.js';
-import { buildPreviewWorkflow, buildWorkflowFromTemplate, getWorkflowTemplateCatalog } from './runtime/workflow-templates.js';
+import { buildPreviewWorkflow, buildWorkflowFromTemplate, buildWorkflowFromUniversalTarget, getWorkflowTemplateCatalog } from './runtime/workflow-templates.js';
 import { renderFieldPickerDocument } from './runtime/field-picker.js';
 import { buildWorkflowRepairPlan } from './runtime/workflow-repair.js';
+import { deriveAuthStatePlanFromResults } from './runtime/auth-state.js';
 import { AppCaptureManager } from './runtime/app-capture-manager.js';
 import { ReverseAssetStore } from './runtime/reverse-asset-store.js';
 import { inspectOptionalIntegrations, probeIntegration, probeIntegrations } from './runtime/integration-registry.js';
 import { getPromMetrics, getPromRegistry } from './runtime/observability.js';
+import { AccountPool } from './runtime/account-pool.js';
+import { AntiBotLab, detectDegradedPage } from './runtime/anti-bot-lab.js';
+import { buildAppCapturePlan, mergeAppCaptureStreams } from './runtime/app-capture-platform.js';
+import { AccessPolicy, AuditLogger, CredentialVault, TenantRegistry } from './runtime/governance.js';
+import { classifyLoginObservation, buildLoginRecoveryPlan, LoginStateMachine } from './runtime/login-state-machine.js';
+import { buildInteractiveLoginPlan, HumanInteractionBroker } from './runtime/interactive-auth-executor.js';
+import { ResourceScheduler, buildDagExecutionPlan, createLineageRecord, evolveSchemaVersion } from './runtime/platform-orchestration.js';
+import { inferGraphQLSemantics, inferGrpcSemantics, inferWebSocketSemantics } from './runtime/protocol-semantics.js';
+import { buildUniversalCrawlPlan } from './runtime/universal-crawl-planner.js';
+import { buildAutoPatchPlan } from './runtime/self-healing.js';
+import { DevicePool, buildMobileAppExecutionPlan, executeMobileAppPlan } from './runtime/mobile-device-platform.js';
+import { buildAttestationCompliancePlan } from './runtime/attestation-policy.js';
 
 const logger = createLogger({ component: 'server' });
 const require = createRequire(import.meta.url);
@@ -68,11 +81,11 @@ export function getCapabilities() {
       reverseModulesOptIn: true,
       automaticAccessControlBypass: false,
     },
-    fetchers: ['http', 'cheerio', 'browser', 'hybrid', 'websocket', 'feed', 'sitemap'],
-    extractors: ['regex', 'json', 'script', 'selector', 'links', 'surface', 'reverse', 'xpath', 'media'],
-    presets: ['HttpCrawler', 'CheerioCrawler', 'BrowserCrawler', 'HybridCrawler', 'MediaCrawler', 'JSDOMCrawler', 'ApiJsonCrawler', 'FeedCrawler', 'SitemapCrawler', 'GraphQLCrawler', 'WebSocketCrawler', 'PuppeteerCrawler', 'PuppeteerCoreCrawler', 'PlaywrightCrawler', 'PlaywrightCoreCrawler', 'PatchrightCrawler'],
+    fetchers: ['http', 'cheerio', 'browser', 'hybrid', 'websocket', 'feed', 'sitemap', 'universal', 'mobile-appium'],
+    extractors: ['regex', 'json', 'script', 'selector', 'links', 'surface', 'reverse', 'xpath', 'media', 'native-source'],
+    presets: ['HttpCrawler', 'CheerioCrawler', 'BrowserCrawler', 'HybridCrawler', 'MediaCrawler', 'JSDOMCrawler', 'ApiJsonCrawler', 'FeedCrawler', 'SitemapCrawler', 'GraphQLCrawler', 'WebSocketCrawler', 'UniversalCrawler', 'PuppeteerCrawler', 'PuppeteerCoreCrawler', 'PlaywrightCrawler', 'PlaywrightCoreCrawler', 'PatchrightCrawler', 'MobileCrawler', 'TorCrawler'],
     plugins: ['dedupe', 'throttle', 'audit', 'rotateUserAgent'],
-    platform: ['workflow-registry', 'interval-scheduler', 'history-replay', 'persistent-job-store', 'request-queue', 'host-aware-frontier-scheduling', 'per-host-concurrency-window', 'priority-frontier', 'per-group-budget-window', 'hostname-origin-frontier-grouping', 'group-backoff', 'retry-storm-isolation', 'job-resume', 'session-pool', 'autoscale-runtime', 'external-plugins', 'runtime-metrics', 'dataset-store', 'key-value-store', 'browser-pool', 'session-isolation', 'proxy-config', 'proxy-pool', 'proxy-routing', 'proxy-control', 'proxy-probe', 'retry-policy', 'rate-limiter', 'adaptive-auto-throttle', 'robots-txt-policy', 'crawl-delay', 'robots-sitemap-seeding', 'job-detail', 'event-search', 'result-pagination', 'failed-request-surface', 'replay-recipe', 'result-export', 'export-backend-drivers', 'job-compare', 'change-tracking', 'change-feed-api', 'nested-field-diff', 'reverse-analysis', 'reverse-workflow', 'reverse-batch', 'reverse-lab', 'reverse-ast', 'reverse-ast-deobfuscate', 'reverse-node-profile', 'reverse-crypto', 'reverse-webpack', 'reverse-browser-sim', 'reverse-browser-execute', 'reverse-curl-convert', 'reverse-hooks', 'reverse-cdp', 'legacy-reverse-compat', 'browser-debug-capture', 'xhr-fetch-capture', 'source-map-capture', 'runtime-hook-capture', 'browser-debug-artifacts', 'quality-monitoring', 'schema-validation', 'waf-detection', 'structure-drift-alerts', 'baseline-anomaly-detection', 'historical-regression-alerts', 'trend-window-analysis', 'webhook-alerting', 'observability-hooks', 'observability-summary', 'integration-registry', 'integration-probe', 'sqlite-control-plane', 'distributed-job-queue', 'worker-leases', 'distributed-scheduler', 'distributed-request-queue', 'distributed-results-store', 'distributed-event-log', 'distributed-artifact-store', 'distributed-sse', 'distributed-gc'],
+    platform: ['workflow-registry', 'interval-scheduler', 'history-replay', 'persistent-job-store', 'request-queue', 'host-aware-frontier-scheduling', 'per-host-concurrency-window', 'priority-frontier', 'per-group-budget-window', 'hostname-origin-frontier-grouping', 'group-backoff', 'retry-storm-isolation', 'job-resume', 'session-pool', 'autoscale-runtime', 'external-plugins', 'runtime-metrics', 'dataset-store', 'key-value-store', 'browser-pool', 'session-isolation', 'proxy-config', 'proxy-pool', 'proxy-routing', 'proxy-control', 'proxy-probe', 'retry-policy', 'rate-limiter', 'adaptive-auto-throttle', 'robots-txt-policy', 'crawl-delay', 'robots-sitemap-seeding', 'job-detail', 'event-search', 'result-pagination', 'failed-request-surface', 'replay-recipe', 'result-export', 'export-backend-drivers', 'job-compare', 'change-tracking', 'change-feed-api', 'nested-field-diff', 'reverse-analysis', 'reverse-workflow', 'reverse-batch', 'reverse-lab', 'reverse-ast', 'reverse-ast-deobfuscate', 'reverse-node-profile', 'reverse-crypto', 'reverse-webpack', 'reverse-browser-sim', 'reverse-browser-execute', 'reverse-curl-convert', 'reverse-hooks', 'reverse-cdp', 'legacy-reverse-compat', 'browser-debug-capture', 'xhr-fetch-capture', 'source-map-capture', 'runtime-hook-capture', 'browser-debug-artifacts', 'quality-monitoring', 'schema-validation', 'waf-detection', 'structure-drift-alerts', 'baseline-anomaly-detection', 'historical-regression-alerts', 'trend-window-analysis', 'webhook-alerting', 'observability-hooks', 'observability-summary', 'integration-registry', 'integration-probe', 'universal-crawl-planner', 'universal-workflow-scaffold', 'login-state-machine', 'interactive-auth-executor', 'tenant-registry', 'persistent-account-pool', 'account-pool-scheduling', 'rbac-access-policy', 'mobile-device-pool', 'mobile-app-execution-plan', 'attestation-compliance-gate', 'app-capture-closed-loop-plan', 'protocol-semantics', 'anti-bot-experiment-lab', 'tenant-resource-quotas', 'dag-orchestration-plan', 'data-lineage', 'schema-evolution', 'self-healing-patch-plan', 'audit-log', 'credential-vault', 'sqlite-control-plane', 'distributed-job-queue', 'worker-leases', 'distributed-scheduler', 'distributed-request-queue', 'distributed-results-store', 'distributed-event-log', 'distributed-artifact-store', 'distributed-sse', 'distributed-gc'],
     artifacts: ['events.ndjson', 'results.ndjson', 'summary.json', 'workflow.json', 'request-queue.json', '.omnicrawl/datasets/*', '.omnicrawl/key-value-stores/*', 'debug/*.browser-debug/manifest.json', 'sqlite:job_events', 'sqlite:job_results', 'sqlite:job_artifacts', 'sqlite:datasets', 'sqlite:key_value_stores'],
     reverse: getReverseCapabilitySnapshot(),
     integrations: inspectOptionalIntegrations(),
@@ -455,6 +468,43 @@ async function readJobReplayRecipe({ controlPlane, dataPlane, projectRoot, jobId
   return diagnostics?.recipe ?? null;
 }
 
+async function readJobResults({ dataPlane, runDir = null, jobId }) {
+  if (dataPlane && typeof dataPlane.listResults === 'function') {
+    return dataPlane.listResults(jobId, {
+      offset: 0,
+      limit: 1000,
+      query: '',
+    })?.items ?? [];
+  }
+
+  if (!runDir) {
+    return [];
+  }
+
+  return readAllNdjsonFile(join(runDir, 'results.ndjson'));
+}
+
+async function readJobAuthStatePlan({ controlPlane, dataPlane, projectRoot, jobId, runDir = null }) {
+  const diagnostics = await readJobDiagnostics({
+    controlPlane,
+    dataPlane,
+    projectRoot,
+    jobId,
+    runDir,
+  });
+  if (diagnostics?.authStatePlan) {
+    return diagnostics.authStatePlan;
+  }
+
+  const results = await readJobResults({
+    dataPlane,
+    runDir,
+    jobId,
+  });
+
+  return deriveAuthStatePlanFromResults(results);
+}
+
 async function loadWorkflowSnapshotForJob({ controlPlane, jobStore, historyStore, jobId }) {
   return controlPlane.enabled
     ? jobStore.loadWorkflow(jobId)
@@ -507,6 +557,24 @@ export function createApp({
   const reverseLabManager = new ReverseLabManager({ projectRoot });
   const alertOutbox = new AlertOutboxService({ projectRoot, logger });
   const appCaptureManager = new AppCaptureManager({ projectRoot });
+  const antiBotLab = new AntiBotLab({ path: join(projectRoot, '.omnicrawl', 'anti-bot-lab.json') });
+  const accountPool = new AccountPool({ path: join(projectRoot, '.omnicrawl', 'accounts.json') });
+  const devicePool = new DevicePool({ path: join(projectRoot, '.omnicrawl', 'devices.json') });
+  const humanInteractionBroker = new HumanInteractionBroker({ path: join(projectRoot, '.omnicrawl', 'human-challenges.json') });
+  const resourceScheduler = new ResourceScheduler();
+  const tenantRegistry = new TenantRegistry({ path: join(projectRoot, '.omnicrawl', 'tenants.json') });
+  const accessPolicy = new AccessPolicy({
+    policies: [
+      { id: 'admin-all', roles: ['admin'], actions: ['*'], resources: ['*'] },
+      { id: 'operator-platform', roles: ['operator'], actions: ['platform.*', 'jobs.*', 'workflows.*'], resources: ['tenant:*'] },
+      { id: 'viewer-read', roles: ['viewer'], actions: ['*.read', 'platform.*.read'], resources: ['tenant:*'] },
+    ],
+  });
+  const auditLogger = new AuditLogger({ path: join(projectRoot, '.omnicrawl', 'audit.ndjson'), actor: 'api' });
+  const credentialVault = new CredentialVault({
+    path: join(projectRoot, '.omnicrawl', 'credentials.json'),
+    masterKey: process.env.OMNICRAWL_VAULT_KEY,
+  });
   const app = express();
 
   if (apiKey) {
@@ -700,6 +768,502 @@ export function createApp({
     res.json(getCapabilities());
   });
 
+  app.post('/platform/login/analyze', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const observation = getObject(input.observation ?? input);
+      const classification = classifyLoginObservation(observation);
+      const plan = buildLoginRecoveryPlan(classification, getObject(input.options));
+      await auditLogger.record('platform.login.analyze', {
+        tenantId: input.tenantId ?? null,
+        target: observation.url ?? observation.finalUrl ?? null,
+        details: {
+          state: classification.state,
+          reasons: classification.reasons,
+        },
+      });
+      res.json({ item: { classification, plan } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/universal/plan', (req, res, next) => {
+    try {
+      res.json({ item: buildUniversalCrawlPlan(getObject(req.body)) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/login/state-machine', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const observations = Array.isArray(input.observations) ? input.observations : [getObject(input.observation)];
+      const machine = new LoginStateMachine(getObject(input.options));
+      const events = observations.map((observation) => machine.observe(observation));
+      const plan = machine.plan(getObject(input.planOptions));
+      res.json({
+        item: {
+          state: machine.state,
+          events,
+          plan,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/login/interactive-plan', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const item = buildInteractiveLoginPlan(getObject(input.observation), getObject(input.options));
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/human-challenges', (req, res) => {
+    res.json({
+      items: humanInteractionBroker.list({
+        status: req.query.status ? String(req.query.status) : null,
+        tenantId: req.query.tenantId ? String(req.query.tenantId) : null,
+      }),
+    });
+  });
+
+  app.post('/platform/human-challenges', async (req, res, next) => {
+    try {
+      const item = humanInteractionBroker.createChallenge(getObject(req.body));
+      await auditLogger.record('human-challenge.create', {
+        tenantId: item.tenantId,
+        target: item.id,
+        details: { type: item.type, accountId: item.accountId },
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/human-challenges/:challengeId/resolve', async (req, res, next) => {
+    try {
+      const item = humanInteractionBroker.resolveChallenge(req.params.challengeId, getObject(req.body));
+      if (!item) {
+        throw new AppError(404, 'human challenge not found');
+      }
+      await auditLogger.record('human-challenge.resolve', {
+        tenantId: item.tenantId,
+        target: item.id,
+        details: { status: item.status },
+      });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/tenants', (_req, res) => {
+    res.json({ items: tenantRegistry.list() });
+  });
+
+  app.post('/platform/tenants', async (req, res, next) => {
+    try {
+      const item = tenantRegistry.upsert(getObject(req.body));
+      if (Object.keys(item.quotas ?? {}).length > 0) {
+        resourceScheduler.setQuota(item.id, item.quotas);
+      }
+      await auditLogger.record('tenant.upsert', {
+        tenantId: item.id,
+        target: item.id,
+        details: { status: item.status, quotas: item.quotas },
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/tenants/:tenantId/status', async (req, res, next) => {
+    try {
+      const item = tenantRegistry.setStatus(req.params.tenantId, req.body?.status);
+      if (!item) {
+        throw new AppError(404, 'tenant not found');
+      }
+      await auditLogger.record('tenant.status', {
+        tenantId: item.id,
+        target: item.id,
+        details: { status: item.status },
+      });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/accounts', (_req, res) => {
+    res.json({ items: accountPool.snapshot() });
+  });
+
+  app.post('/platform/accounts', async (req, res, next) => {
+    try {
+      const item = accountPool.upsert(getObject(req.body));
+      await auditLogger.record('account.upsert', {
+        tenantId: item.tenantId,
+        target: item.id,
+        details: { siteId: item.siteId, labels: item.labels },
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/accounts/lease', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const pool = Array.isArray(input.accounts) ? new AccountPool({
+        accounts: input.accounts,
+        leaseMs: input.leaseMs,
+        cooldownMs: input.cooldownMs,
+        maxConsecutiveFailures: input.maxConsecutiveFailures,
+      }) : accountPool;
+      const lease = pool.lease(getObject(input.scope));
+      if (input.result?.accountId) {
+        pool.release(String(input.result.accountId), getObject(input.result));
+      }
+      res.json({
+        item: lease,
+        snapshot: pool.snapshot(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/accounts/release', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const accountId = String(input.accountId ?? '').trim();
+      if (!accountId) {
+        throw new AppError(400, 'accountId is required');
+      }
+      const item = accountPool.release(accountId, getObject(input.result));
+      if (!item) {
+        throw new AppError(404, 'account not found');
+      }
+      await auditLogger.record('account.release', {
+        tenantId: item.tenantId,
+        target: item.id,
+        details: { ok: input.result?.ok, score: item.score },
+      });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/accounts/:accountId/enabled', async (req, res, next) => {
+    try {
+      const item = accountPool.setEnabled(req.params.accountId, req.body?.enabled !== false);
+      if (!item) {
+        throw new AppError(404, 'account not found');
+      }
+      await auditLogger.record('account.enabled', {
+        tenantId: item.tenantId,
+        target: item.id,
+        details: { enabled: !item.disabled },
+      });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/app-capture/plan', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      res.json({
+        item: buildAppCapturePlan(input),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/app-capture/merge-streams', (req, res, next) => {
+    try {
+      res.json({
+        item: mergeAppCaptureStreams(getObject(req.body)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/devices', (_req, res) => {
+    res.json({ items: devicePool.snapshot() });
+  });
+
+  app.post('/platform/devices', async (req, res, next) => {
+    try {
+      const item = devicePool.upsert(getObject(req.body));
+      await auditLogger.record('device.upsert', {
+        tenantId: req.body?.tenantId ?? null,
+        target: item.id,
+        details: { platform: item.platform, labels: item.labels },
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/devices/lease', (req, res, next) => {
+    try {
+      const item = devicePool.lease(getObject(req.body?.scope ?? req.body));
+      res.json({ item, snapshot: devicePool.snapshot() });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/mobile-app/execution-plan', (req, res, next) => {
+    try {
+      const item = buildMobileAppExecutionPlan(getObject(req.body));
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/mobile-app/execute-plan', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const plan = input.plan ?? buildMobileAppExecutionPlan(input);
+      const item = await executeMobileAppPlan(plan, {}, { dryRun: input.dryRun !== false });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/attestation/compliance-plan', (req, res, next) => {
+    try {
+      res.json({ item: buildAttestationCompliancePlan(getObject(req.body?.signal ?? req.body), getObject(req.body?.options)) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/protocol/semantics', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const kind = String(input.kind ?? input.protocol ?? '').toLowerCase();
+      const item =
+        kind === 'graphql'
+          ? inferGraphQLSemantics(getObject(input.schema), getObject(input.options))
+          : kind === 'websocket' || kind === 'ws'
+            ? inferWebSocketSemantics(Array.isArray(input.transcript) ? input.transcript : [])
+            : kind === 'grpc' || kind === 'protobuf'
+              ? inferGrpcSemantics(Array.isArray(input.samples) ? input.samples : [])
+              : null;
+      if (!item) {
+        throw new AppError(400, 'kind must be graphql, websocket, or grpc');
+      }
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/anti-bot/experiments', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const matrix = antiBotLab.buildExperimentMatrix({
+        siteId: input.siteId,
+        proxies: Array.isArray(input.proxies) ? input.proxies : [],
+        identities: Array.isArray(input.identities) ? input.identities : [],
+        browsers: Array.isArray(input.browsers) ? input.browsers : [],
+      });
+      res.json({
+        items: matrix,
+        total: matrix.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/anti-bot/results', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const item = antiBotLab.recordExperiment(input);
+      res.json({
+        item,
+        degraded: detectDegradedPage(input),
+        successRates: antiBotLab.successRates(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/orchestration/reserve', (req, res, next) => {
+    try {
+      const task = getObject(req.body);
+      const reservation = resourceScheduler.reserve(task);
+      res.json({
+        accepted: Boolean(reservation),
+        reservation,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/orchestration/quotas', (_req, res) => {
+    res.json({ item: resourceScheduler.snapshot() });
+  });
+
+  app.post('/platform/orchestration/quotas', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const tenantId = String(input.tenantId ?? '').trim();
+      if (!tenantId) {
+        throw new AppError(400, 'tenantId is required');
+      }
+      const item = resourceScheduler.setQuota(tenantId, getObject(input.quota));
+      const tenant = tenantRegistry.get(tenantId);
+      if (tenant) {
+        tenantRegistry.upsert({
+          ...tenant,
+          quotas: item.quota,
+        });
+      }
+      await auditLogger.record('quota.set', {
+        tenantId,
+        target: tenantId,
+        details: { quota: item.quota },
+      });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/orchestration/dag-plan', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const nodes = Array.isArray(input.nodes) ? input.nodes : [];
+      res.json({
+        item: buildDagExecutionPlan(nodes),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/data/lineage', (req, res, next) => {
+    try {
+      res.json({
+        item: createLineageRecord(getObject(req.body)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/data/schema/evolve', (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      res.json({
+        item: evolveSchemaVersion(getObject(input.schema), getObject(input.observedFields)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/self-healing/patch-plan', (req, res, next) => {
+    try {
+      res.json({
+        item: buildAutoPatchPlan(getObject(req.body)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/governance/audit', (_req, res) => {
+    res.json({ items: auditLogger.list() });
+  });
+
+  app.get('/platform/governance/access/policies', (_req, res) => {
+    res.json({ items: accessPolicy.list() });
+  });
+
+  app.post('/platform/governance/access/evaluate', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const item = accessPolicy.evaluate({
+        tenantId: input.tenantId,
+        roles: Array.isArray(input.roles) ? input.roles : [],
+        action: input.action,
+        resource: input.resource,
+      });
+      await auditLogger.record('access.evaluate', {
+        tenantId: input.tenantId,
+        target: input.resource,
+        details: { action: input.action, roles: input.roles, allowed: item.allowed, reason: item.reason },
+      });
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/governance/audit', async (req, res, next) => {
+    try {
+      const input = getObject(req.body);
+      const item = await auditLogger.record(String(input.action ?? 'platform.event'), {
+        actor: input.actor,
+        tenantId: input.tenantId,
+        target: input.target,
+        details: getObject(input.details),
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/platform/governance/credentials', async (req, res, next) => {
+    try {
+      const item = credentialVault.put(getObject(req.body));
+      await auditLogger.record('credential.create', {
+        tenantId: item.tenantId,
+        target: item.id,
+        details: { name: item.name, scope: item.scope },
+      });
+      res.status(201).json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/platform/governance/credentials/:tenantId/:name', (req, res) => {
+    const id = `${req.params.tenantId}:${req.params.name}`;
+    const item = credentialVault.describe(id);
+    if (!item) {
+      res.status(404).json({ error: 'credential not found' });
+      return;
+    }
+    res.json({ item });
+  });
+
   app.get('/tools/workflow-templates', (_req, res) => {
     res.json({ items: getWorkflowTemplateCatalog() });
   });
@@ -707,6 +1271,15 @@ export function createApp({
   app.post('/tools/workflow-templates/build', (req, res, next) => {
     try {
       const item = buildWorkflowFromTemplate(getObject(req.body));
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/tools/universal-workflow/build', (req, res, next) => {
+    try {
+      const item = buildWorkflowFromUniversalTarget(getObject(req.body));
       res.json({ item });
     } catch (error) {
       next(error);
@@ -2037,7 +2610,7 @@ export function createApp({
       return;
     }
 
-    const [diagnostics, recipe, failedRequests] = await Promise.all([
+    const [diagnostics, recipe, failedRequests, authStatePlan] = await Promise.all([
       readJobDiagnostics({
         controlPlane,
         dataPlane,
@@ -2058,6 +2631,13 @@ export function createApp({
         projectRoot,
         jobId: req.params.jobId,
       }),
+      readJobAuthStatePlan({
+        controlPlane,
+        dataPlane,
+        projectRoot,
+        jobId: req.params.jobId,
+        runDir: job.runDir ?? null,
+      }),
     ]);
 
     res.json({
@@ -2066,6 +2646,7 @@ export function createApp({
         diagnostics: diagnostics ?? {},
         recipe: recipe ?? {},
         failedRequests,
+        authStatePlan,
       }),
     });
   });
@@ -2092,7 +2673,7 @@ export function createApp({
         throw new AppError(404, 'workflow snapshot not found for job');
       }
 
-      const [diagnostics, recipe, failedRequests] = await Promise.all([
+      const [diagnostics, recipe, failedRequests, authStatePlan] = await Promise.all([
         readJobDiagnostics({
           controlPlane,
           dataPlane,
@@ -2113,12 +2694,20 @@ export function createApp({
           projectRoot,
           jobId: req.params.jobId,
         }),
+        readJobAuthStatePlan({
+          controlPlane,
+          dataPlane,
+          projectRoot,
+          jobId: req.params.jobId,
+          runDir: job.runDir ?? null,
+        }),
       ]);
       const plan = buildWorkflowRepairPlan({
         workflow,
         diagnostics: diagnostics ?? {},
         recipe: recipe ?? {},
         failedRequests,
+        authStatePlan,
       });
       const register = req.body?.register === true;
       let workflowEntry = null;
@@ -2907,6 +3496,15 @@ export function createApp({
     activeRuns,
     alertOutbox,
     reverseLabManager,
+    antiBotLab,
+    accountPool,
+    devicePool,
+    humanInteractionBroker,
+    tenantRegistry,
+    resourceScheduler,
+    auditLogger,
+    credentialVault,
+    accessPolicy,
   };
 }
 
@@ -2926,8 +3524,20 @@ export async function startServer({
     services.proxyPool.init(),
     services.scheduler.init(),
     services.alertOutbox.init(),
+    services.antiBotLab.init(),
+    services.accountPool.init(),
+    services.devicePool.init(),
+    services.humanInteractionBroker.init(),
+    services.tenantRegistry.init(),
+    services.auditLogger.init(),
+    services.credentialVault.init(),
     services.dataPlane?.init?.() ?? Promise.resolve(),
   ]);
+  for (const tenant of services.tenantRegistry.list()) {
+    if (Object.keys(tenant.quotas ?? {}).length > 0) {
+      services.resourceScheduler.setQuota(tenant.id, tenant.quotas);
+    }
+  }
   services.distributedWorker?.start();
   services.gcService?.start();
   services.alertOutbox?.start();

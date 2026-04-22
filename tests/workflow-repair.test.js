@@ -39,3 +39,37 @@ test('workflow repair plan upgrades workflow from diagnostics and replay recipe'
   assert.equal(plan.rebuiltWorkflow.output.persistBodies, true);
   assert.ok(plan.reasons.length >= 3);
 });
+
+test('workflow repair plan applies auth-state plan into headers and browser replay bootstrap', () => {
+  const plan = buildWorkflowRepairPlan({
+    workflow: {
+      name: 'repair-auth',
+      seedUrls: ['https://example.com/account'],
+      mode: 'browser',
+      browser: {
+        replay: {},
+      },
+      headers: {},
+    },
+    authStatePlan: {
+      kind: 'auth-state-plan',
+      loginWallDetected: true,
+      loginWallReasons: ['login-copy'],
+      sessionLikelyRequired: true,
+      requiredCookies: ['session'],
+      cookieValues: { session: 'abc123' },
+      requiredHeaders: { authorization: 'Bearer token-1' },
+      replayState: { csrfToken: 'csrf-1', access_token: 'token-1' },
+      refreshLikely: true,
+      csrfFields: ['csrfToken'],
+    },
+  });
+
+  assert.equal(plan.authStatePlan.loginWallDetected, true);
+  assert.equal(plan.patch.session.enabled, true);
+  assert.equal(plan.patch.headers.authorization, 'Bearer token-1');
+  assert.ok(plan.patch.browser.replay.initScripts.some((entry) => entry.includes('__OMNICRAWL_AUTH_STATE')));
+  assert.equal(plan.patch.browser.replay.cookies[0].name, 'session');
+  assert.equal(plan.patch.browser.replay.cookies[0].value, 'abc123');
+  assert.ok(plan.reasons.some((entry) => entry.includes('login/session pressure')));
+});

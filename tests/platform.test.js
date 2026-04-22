@@ -57,6 +57,10 @@ test('workflow registry, schedule manager, history replay, and dashboard work to
     assert.match(dashboardHtml, /OmniCrawl Control Panel/);
     assert.match(dashboardHtml, /零代码快速开始/);
     assert.match(dashboardHtml, /Recent Run Health/);
+    assert.match(dashboardHtml, /平台运营面/);
+    assert.match(dashboardHtml, /登录状态机/);
+    assert.match(dashboardHtml, /协议语义学习/);
+    assert.match(dashboardHtml, /审计日志/);
 
     const registerResponse = await fetch(`${apiBase}/workflows`, {
       method: 'POST',

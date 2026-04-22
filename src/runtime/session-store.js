@@ -16,6 +16,13 @@ function createEmptySnapshot(sessionId) {
     updatedAt: now,
     cookies: [],
     origins: {},
+    auth: {
+      headers: {},
+      query: {},
+      cookies: {},
+      tokens: {},
+      replayState: {},
+    },
     lastUrl: null,
   };
 }
@@ -98,12 +105,7 @@ function cookieMatchesUrl(cookie, targetUrl) {
 
 function upsertCookie(cookies, nextCookie) {
   const filtered = cookies.filter(
-    (cookie) =>
-      !(
-        cookie.name === nextCookie.name &&
-        cookie.domain === nextCookie.domain &&
-        cookie.path === nextCookie.path
-      ),
+    (cookie) => !(cookie.name === nextCookie.name && cookie.domain === nextCookie.domain && cookie.path === nextCookie.path),
   );
 
   if (!isCookieExpired(nextCookie)) {
@@ -111,6 +113,91 @@ function upsertCookie(cookies, nextCookie) {
   }
 
   return filtered;
+}
+
+function normalizeOrigins(snapshot = {}) {
+  if (snapshot.origins && typeof snapshot.origins === 'object' && !Array.isArray(snapshot.origins)) {
+    return structuredClone(snapshot.origins);
+  }
+
+  const origins = {};
+  if (snapshot.localStorage && typeof snapshot.localStorage === 'object') {
+    for (const [origin, values] of Object.entries(snapshot.localStorage)) {
+      origins[origin] = {
+        ...(origins[origin] ?? {}),
+        localStorage: { ...(values ?? {}) },
+      };
+    }
+  }
+  if (snapshot.sessionStorage && typeof snapshot.sessionStorage === 'object') {
+    for (const [origin, values] of Object.entries(snapshot.sessionStorage)) {
+      origins[origin] = {
+        ...(origins[origin] ?? {}),
+        sessionStorage: { ...(values ?? {}) },
+      };
+    }
+  }
+  return origins;
+}
+
+function normalizeAuthState(snapshot = {}) {
+  const auth = snapshot.auth && typeof snapshot.auth === 'object' && !Array.isArray(snapshot.auth)
+    ? snapshot.auth
+    : {};
+  return {
+    headers: { ...(auth.headers ?? {}) },
+    query: { ...(auth.query ?? {}) },
+    cookies: { ...(auth.cookies ?? {}) },
+    tokens: { ...(auth.tokens ?? {}) },
+    replayState: { ...(auth.replayState ?? {}) },
+  };
+}
+
+function normalizeSnapshot(snapshot = {}) {
+  const normalized = {
+    ...snapshot,
+    cookies: Array.isArray(snapshot.cookies) ? snapshot.cookies.filter((cookie) => !isCookieExpired(cookie)) : [],
+    origins: normalizeOrigins(snapshot),
+    auth: normalizeAuthState(snapshot),
+  };
+
+  delete normalized.localStorage;
+  delete normalized.sessionStorage;
+  return normalized;
+}
+
+function mergeNested(base = {}, next = {}) {
+  return {
+    ...(base ?? {}),
+    ...(next ?? {}),
+  };
+}
+
+function extractTokenLikeValues(value, trail = [], output = {}) {
+  if (value === null || value === undefined) {
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => extractTokenLikeValues(entry, [...trail, String(index)], output));
+    return output;
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      extractTokenLikeValues(entry, [...trail, key], output);
+    }
+    return output;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const key = trail[trail.length - 1] ?? '';
+    if (/(token|auth|session|csrf|nonce|bearer|jwt|api[_-]?key|secret)/i.test(key)) {
+      output[trail.join('.')] = value;
+    }
+  }
+
+  return output;
 }
 
 async function addInitScriptCompat(page, script, arg) {
@@ -164,7 +251,7 @@ export class SessionStore {
     }
 
     try {
-      const snapshot = await readJson(this.buildSessionPath(sessionId));
+      const snapshot = normalizeSnapshot(await readJson(this.buildSessionPath(sessionId)));
       this.cache.set(sessionId, snapshot);
       return structuredClone(snapshot);
     } catch {
@@ -176,11 +263,13 @@ export class SessionStore {
 
   async save(snapshot) {
     await this.init();
-    const nextSnapshot = {
+    const base = createEmptySnapshot(snapshot.id);
+    const nextSnapshot = normalizeSnapshot({
+      ...base,
       ...snapshot,
-      cookies: (snapshot.cookies ?? []).filter((cookie) => !isCookieExpired(cookie)),
+      auth: mergeNested(base.auth, snapshot.auth),
       updatedAt: nowIso(),
-    };
+    });
     this.cache.set(nextSnapshot.id, nextSnapshot);
     await writeJson(this.buildSessionPath(nextSnapshot.id), nextSnapshot);
     return nextSnapshot;
@@ -193,12 +282,12 @@ export class SessionStore {
 
     for (const file of files) {
       try {
-        const snapshot = await readJson(join(this.storageDir, file));
+        const snapshot = normalizeSnapshot(await readJson(join(this.storageDir, file)));
         items.push({
           id: snapshot.id,
           updatedAt: snapshot.updatedAt,
           createdAt: snapshot.createdAt,
-          cookieCount: Array.isArray(snapshot.cookies) ? snapshot.cookies.length : 0,
+          cookieCount: snapshot.cookies.length,
           originCount: Object.keys(snapshot.origins ?? {}).length,
           lastUrl: snapshot.lastUrl ?? null,
         });
@@ -213,13 +302,30 @@ export class SessionStore {
   }
 
   buildCookieHeader(snapshot, targetUrl) {
-    return (snapshot.cookies ?? [])
-      .filter((cookie) => cookieMatchesUrl(cookie, targetUrl))
-      .map((cookie) => `${cookie.name}=${cookie.value}`)
-      .join('; ');
+    const cookieEntries = [
+      ...(snapshot.cookies ?? [])
+        .filter((cookie) => cookieMatchesUrl(cookie, targetUrl))
+        .map((cookie) => `${cookie.name}=${cookie.value}`),
+      ...Object.entries(snapshot.auth?.cookies ?? {}).map(([name, value]) => `${name}=${value}`),
+    ];
+    return [...new Set(cookieEntries)].join('; ');
   }
 
-  async mergeHttpResponse(sessionId, targetUrl, setCookieHeaders = []) {
+  buildRequestHeaders(snapshot, targetUrl, options = {}) {
+    const headers = {
+      ...(snapshot.auth?.headers ?? {}),
+      ...(options.headers ?? {}),
+    };
+    if (options.includeCookies !== false) {
+      const cookieHeader = this.buildCookieHeader(snapshot, targetUrl);
+      if (cookieHeader) {
+        headers.cookie = cookieHeader;
+      }
+    }
+    return headers;
+  }
+
+  async mergeHttpResponse(sessionId, targetUrl, setCookieHeaders = [], options = {}) {
     const snapshot = await this.load(sessionId);
     let cookies = snapshot.cookies ?? [];
 
@@ -232,6 +338,59 @@ export class SessionStore {
 
     snapshot.cookies = cookies;
     snapshot.lastUrl = targetUrl;
+
+    if (options.headers && typeof options.headers === 'object') {
+      const authHeaders = {};
+      for (const [key, value] of Object.entries(options.headers)) {
+        if (/^(authorization|x-auth-token|x-csrf-token|x-api-key)$/i.test(key)) {
+          authHeaders[key.toLowerCase()] = value;
+        }
+      }
+      snapshot.auth.headers = mergeNested(snapshot.auth.headers, authHeaders);
+    }
+
+    if (options.body && typeof options.body === 'object') {
+      snapshot.auth.tokens = mergeNested(snapshot.auth.tokens, extractTokenLikeValues(options.body));
+    }
+
+    if (options.replayState && typeof options.replayState === 'object') {
+      snapshot.auth.replayState = mergeNested(snapshot.auth.replayState, options.replayState);
+    }
+
+    return this.save(snapshot);
+  }
+
+  async mergeAuthState(sessionId, authState = {}) {
+    const snapshot = await this.load(sessionId);
+    snapshot.auth = {
+      headers: mergeNested(snapshot.auth.headers, authState.headers),
+      query: mergeNested(snapshot.auth.query, authState.query),
+      cookies: mergeNested(snapshot.auth.cookies, authState.cookies),
+      tokens: mergeNested(snapshot.auth.tokens, authState.tokens),
+      replayState: mergeNested(snapshot.auth.replayState, authState.replayState),
+    };
+    return this.save(snapshot);
+  }
+
+  async buildRequestState(sessionId, targetUrl, options = {}) {
+    const snapshot = await this.load(sessionId);
+    return {
+      headers: this.buildRequestHeaders(snapshot, targetUrl, options),
+      replayState: {
+        ...(snapshot.auth?.tokens ?? {}),
+        ...(snapshot.auth?.replayState ?? {}),
+      },
+      snapshot,
+    };
+  }
+
+  async setOriginStorage(sessionId, origin, { localStorage = null, sessionStorage = null } = {}) {
+    const snapshot = await this.load(sessionId);
+    snapshot.origins[origin] = {
+      ...(snapshot.origins[origin] ?? {}),
+      ...(localStorage ? { localStorage: { ...localStorage } } : {}),
+      ...(sessionStorage ? { sessionStorage: { ...sessionStorage } } : {}),
+    };
     return this.save(snapshot);
   }
 
@@ -246,9 +405,7 @@ export class SessionStore {
     const originMap = snapshot.origins ?? {};
     await addInitScriptCompat(page, (storageMap) => {
       const entry = storageMap[location.origin];
-      if (!entry) {
-        return;
-      }
+      if (!entry) return;
 
       if (entry.localStorage && typeof entry.localStorage === 'object') {
         localStorage.clear();
@@ -281,9 +438,7 @@ export class SessionStore {
             const values = {};
             for (let index = 0; index < localStorage.length; index += 1) {
               const key = localStorage.key(index);
-              if (key !== null) {
-                values[key] = localStorage.getItem(key);
-              }
+              if (key !== null) values[key] = localStorage.getItem(key);
             }
             return values;
           })(),
@@ -291,20 +446,25 @@ export class SessionStore {
             const values = {};
             for (let index = 0; index < sessionStorage.length; index += 1) {
               const key = sessionStorage.key(index);
-              if (key !== null) {
-                values[key] = sessionStorage.getItem(key);
-              }
+              if (key !== null) values[key] = sessionStorage.getItem(key);
             }
             return values;
           })(),
         }));
 
         if (pageStorage?.origin) {
-          snapshot.origins = snapshot.origins ?? {};
           snapshot.origins[pageStorage.origin] = {
             localStorage: pageStorage.localStorage ?? {},
             sessionStorage: pageStorage.sessionStorage ?? {},
           };
+          snapshot.auth.tokens = mergeNested(
+            snapshot.auth.tokens,
+            extractTokenLikeValues(pageStorage.localStorage),
+          );
+          snapshot.auth.replayState = mergeNested(
+            snapshot.auth.replayState,
+            pageStorage.localStorage ?? {},
+          );
         }
       } catch {
         // Ignore storage capture failures for non-standard pages.

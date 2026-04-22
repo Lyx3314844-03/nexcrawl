@@ -89,22 +89,22 @@ export async function createSocks5Agent(config = {}) {
           const chunks = [];
           res.on('data', chunk => chunks.push(chunk));
           res.on('end', () => {
+            const responseText = Buffer.concat(chunks).toString();
             resolve({
-            status: res.statusCode,
-            headers: new Map(Object.entries(res.headers ?? {})),
-            body: Buffer.concat(chunks).toString(),
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            json: () => JSON.parse(Buffer.concat(chunks).toString()),
-            text: () => Promise.resolve(Buffer.concat(chunks).toString()),
-            url: respUrl,
-            statusText: res.statusMessage || '',
-            clone: () => Promise.resolve(null),
-            headers: {
-              get: (name) => res.headers?.[name.toLowerCase()],
-              has: (name) => name.toLowerCase() in (res.headers ?? {}),
-              entries: () => Object.entries(res.headers ?? {}),
-            },
-          });
+              status: res.statusCode,
+              body: responseText,
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              json: () => Promise.resolve(JSON.parse(responseText)),
+              text: () => Promise.resolve(responseText),
+              url,
+              statusText: res.statusMessage || '',
+              clone: () => Promise.resolve(null),
+              headers: {
+                get: (name) => res.headers?.[name.toLowerCase()],
+                has: (name) => name.toLowerCase() in (res.headers ?? {}),
+                entries: () => Object.entries(res.headers ?? {}),
+              },
+            });
           });
         });
         req.on('error', reject);

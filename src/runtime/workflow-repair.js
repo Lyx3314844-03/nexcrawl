@@ -16,11 +16,89 @@ function ensurePluginList(workflow) {
   return [...current].map((name) => ({ name }));
 }
 
+function mergeObjects(base = {}, next = {}) {
+  return {
+    ...(base ?? {}),
+    ...(next ?? {}),
+  };
+}
+
+function unique(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function mergeAuthStatePlans(...plans) {
+  const normalized = plans.filter((plan) => plan && typeof plan === 'object');
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  return normalized.reduce((acc, plan) => ({
+    kind: 'auth-state-plan',
+    loginWallDetected: acc.loginWallDetected || plan.loginWallDetected === true,
+    loginWallReasons: unique([...(acc.loginWallReasons ?? []), ...(plan.loginWallReasons ?? [])]),
+    sessionLikelyRequired: acc.sessionLikelyRequired || plan.sessionLikelyRequired === true,
+    requiredCookies: unique([...(acc.requiredCookies ?? []), ...(plan.requiredCookies ?? [])]),
+    cookieValues: mergeObjects(acc.cookieValues, plan.cookieValues),
+    requiredHeaders: mergeObjects(acc.requiredHeaders, plan.requiredHeaders),
+    replayState: mergeObjects(acc.replayState, plan.replayState),
+    refreshLikely: acc.refreshLikely || plan.refreshLikely === true,
+    csrfFields: unique([...(acc.csrfFields ?? []), ...(plan.csrfFields ?? [])]),
+  }), {
+    kind: 'auth-state-plan',
+    loginWallDetected: false,
+    loginWallReasons: [],
+    sessionLikelyRequired: false,
+    requiredCookies: [],
+    cookieValues: {},
+    requiredHeaders: {},
+    replayState: {},
+    refreshLikely: false,
+    csrfFields: [],
+  });
+}
+
+function buildAuthReplayInitScript(authStatePlan = {}) {
+  const replayState = authStatePlan.replayState ?? {};
+  const serialized = JSON.stringify(replayState);
+  return `
+(() => {
+  const authState = ${serialized};
+  window.__OMNICRAWL_AUTH_STATE = authState;
+  for (const [key, value] of Object.entries(authState)) {
+    try {
+      if (value === null || value === undefined) continue;
+      localStorage.setItem(key, String(value));
+    } catch {}
+    try {
+      if (value === null || value === undefined) continue;
+      sessionStorage.setItem(key, String(value));
+    } catch {}
+  }
+})();
+`.trim();
+}
+
+function buildAuthReplayCookies(authStatePlan = {}, workflow) {
+  const url = workflow?.seedUrls?.[0] ?? null;
+  if (!url) {
+    return [];
+  }
+
+  return Object.entries(authStatePlan.cookieValues ?? {}).map(([name, value]) => ({
+    name,
+    value: String(value),
+    url,
+    path: '/',
+  }));
+}
+
 export function buildWorkflowRepairPlan({
   workflow,
   diagnostics = {},
   recipe = {},
   failedRequests = [],
+  authStatePlan = null,
 } = {}) {
   if (!workflow || typeof workflow !== 'object') {
     throw new TypeError('workflow is required');
@@ -35,6 +113,12 @@ export function buildWorkflowRepairPlan({
       console: false,
     },
   };
+
+  const mergedAuthStatePlan = mergeAuthStatePlans(
+    authStatePlan,
+    diagnostics?.authStatePlan,
+    recipe?.authStatePlan,
+  );
 
   const recommendedMode = recipe.recommendedMode ?? workflow.mode ?? 'http';
   if (recommendedMode !== workflow.mode) {
@@ -56,21 +140,58 @@ export function buildWorkflowRepairPlan({
     };
   }
 
-  if (hasSuspect(diagnostics, 'auth-or-session-state')) {
+  const authRepairNeeded =
+    hasSuspect(diagnostics, 'auth-or-session-state')
+    || mergedAuthStatePlan?.sessionLikelyRequired
+    || mergedAuthStatePlan?.loginWallDetected;
+
+  if (authRepairNeeded) {
     patch.session = {
       ...(workflow.session ?? {}),
       enabled: true,
       scope: workflow.session?.scope ?? 'job',
       captureStorage: true,
     };
+
+    const priorReplay = (patch.browser ?? workflow.browser ?? {}).replay ?? {};
+    const nextReplay = {
+      ...priorReplay,
+      steps: toArray(priorReplay.steps),
+      initScripts: [...toArray(priorReplay.initScripts)],
+      cookies: [...toArray(priorReplay.cookies)],
+    };
+
+    if (mergedAuthStatePlan && Object.keys(mergedAuthStatePlan.replayState ?? {}).length > 0) {
+      nextReplay.initScripts.push(buildAuthReplayInitScript(mergedAuthStatePlan));
+    }
+
+    const replayCookies = buildAuthReplayCookies(mergedAuthStatePlan ?? {}, workflow);
+    if (replayCookies.length > 0) {
+      nextReplay.cookies.push(...replayCookies);
+    }
+
     patch.browser = {
       ...(patch.browser ?? workflow.browser ?? {}),
-      replay: {
-        ...((patch.browser ?? workflow.browser ?? {}).replay ?? {}),
-        steps: toArray(((patch.browser ?? workflow.browser ?? {}).replay ?? {}).steps),
-      },
+      replay: nextReplay,
     };
+
+    if (mergedAuthStatePlan && Object.keys(mergedAuthStatePlan.requiredHeaders ?? {}).length > 0) {
+      patch.headers = {
+        ...(workflow.headers ?? {}),
+        ...mergedAuthStatePlan.requiredHeaders,
+      };
+    }
+
     reasons.push('Enable session persistence and browser replay scaffolding for auth/session failures.');
+    if ((mergedAuthStatePlan?.loginWallReasons?.length ?? 0) > 0) {
+      reasons.push(`Auth-state analysis detected login/session pressure: ${mergedAuthStatePlan.loginWallReasons.join(', ')}.`);
+    }
+    if (Object.keys(mergedAuthStatePlan?.requiredHeaders ?? {}).length > 0) {
+      reasons.push('Preserve known auth headers captured from healthy/auth-adjacent responses.');
+    }
+    if (Object.keys(mergedAuthStatePlan?.cookieValues ?? {}).length > 0) {
+      reasons.push('Seed observed auth cookies into browser replay bootstrap.');
+    }
   }
 
   if (hasSuspect(diagnostics, 'signature-or-parameter-chain') || hasSuspect(diagnostics, 'runtime-signature-hardening')) {
@@ -141,6 +262,7 @@ export function buildWorkflowRepairPlan({
   return {
     patch,
     reasons,
+    authStatePlan: mergedAuthStatePlan,
     rebuiltWorkflow,
     suggestedWorkflowId: `${workflow.name}-repaired`,
     quickActions: {
@@ -153,9 +275,6 @@ export function buildWorkflowRepairPlan({
   };
 }
 
-/**
- * Register repaired workflow and immediately start a new job
- */
 export async function registerAndRerunRepair({
   repairPlan,
   jobStore,
@@ -167,8 +286,7 @@ export async function registerAndRerunRepair({
   }
 
   const workflowId = repairPlan.suggestedWorkflowId;
-  
-  // Register repaired workflow
+
   await workflowRegistry.register({
     id: workflowId,
     workflow: repairPlan.rebuiltWorkflow,
@@ -180,14 +298,12 @@ export async function registerAndRerunRepair({
     },
   });
 
-  // Create and start new job
   const job = await jobStore.create({
     workflowId,
     status: 'pending',
     createdAt: new Date().toISOString(),
   });
 
-  // Start job execution
   const runPromise = jobRunner.run(job.id);
 
   return {

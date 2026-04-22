@@ -1,5 +1,5 @@
 import { getLogger } from '../utils/logger.js';
-import { zod } from 'zod';
+import { z } from 'zod';
 
 const logger = getLogger('data-validator');
 

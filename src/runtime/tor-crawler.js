@@ -1,38 +1,58 @@
 import { HttpCrawler } from '../api/crawler-presets.js';
 import { getLogger } from '../utils/logger.js';
-import { SocksProxyAgent } from 'socks-proxy-agent';
+import { createTorAgent } from '../fetchers/socks5-proxy.js';
 
 const logger = getLogger('tor-crawler');
 
+function parseTorProxy(proxyUrl) {
+  const parsed = new URL(proxyUrl);
+  return {
+    host: parsed.hostname,
+    socksPort: parsed.port ? Number(parsed.port) : 9050,
+  };
+}
+
 /**
- * Tor 匿名爬虫
- * 场景：暗网抓取、高匿名性采集、绕过 IP 封禁
+ * Tor-backed crawler.
+ *
+ * This preset binds the workflow to a SOCKS5/SOCKS5h Tor proxy so normal HTTP
+ * fetches, crawl-policy lookups, and follow-up requests all route through the
+ * same Tor circuit.
  */
 export class TorCrawler extends HttpCrawler {
   constructor(options = {}) {
     super(options);
     this.torProxy = options.torProxy || 'socks5h://127.0.0.1:9050';
+    this.torControlPort = options.torControlPort ?? 9051;
+    this.torControlPassword = options.torControlPassword;
+    this._torAgent = null;
+
+    this.useProxy({ server: this.torProxy });
   }
 
-  /**
-   * 重写请求逻辑，强制走 Tor 代理
-   */
-  async _fetch(url, options) {
-    const agent = new SocksProxyAgent(this.torProxy);
-    logger.debug(`Fetching via Tor: ${url}`);
-    
-    return await super._fetch(url, {
-      ...options,
-      agent,
-      timeout: 30000 // Tor 较慢，增加超时
+  async #getTorAgent() {
+    if (this._torAgent) {
+      return this._torAgent;
+    }
+
+    const connection = parseTorProxy(this.torProxy);
+    this._torAgent = await createTorAgent({
+      host: connection.host,
+      socksPort: connection.socksPort,
+      controlPort: this.torControlPort,
+      controlPassword: this.torControlPassword,
     });
+    return this._torAgent;
   }
 
-  /**
-   * 自动更换 Tor 身份 (New Identity)
-   */
   async renewIdentity() {
     logger.info('Requesting new Tor identity...');
-    // 逻辑：向 Tor Control Port 发送 'SIGNAL NEWNYM'
+    const agent = await this.#getTorAgent();
+    return agent.renewIdentity();
+  }
+
+  async checkTorConnection() {
+    const agent = await this.#getTorAgent();
+    return agent.checkTorConnection();
   }
 }

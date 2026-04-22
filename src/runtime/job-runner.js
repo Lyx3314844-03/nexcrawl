@@ -31,6 +31,7 @@ import { getUrlPathExtension } from '../utils/url.js';
 import { interpolateReplayValue } from '../utils/replay-template.js';
 import { applyAfterResponseHooks, buildResultRecord, enrichResultRecord, executeFetchAttempt, finalizeProcessedResult, handleDetectedChallenge, handleRetryableError, handleRetryableResponse, reportFailedFetchAttempt, reportSuccessfulFetchAttempt, waitForGroupBackoff } from './job-attempt.js';
 import { createWorkflowReverseRuntime } from './reverse-workflow-runtime.js';
+import { createAutoScrollPlugin } from '../fetchers/scroll-handler.js';
 import { GroupBackoffController } from './group-backoff.js';
 import { discoverNextPage } from './pagination-discovery.js';
 import { changeTrackingSnapshot, dispatchAvailableItems, enqueueInitialRequests, frontierSnapshot, getSeedRequests, waitForDispatchProgress } from './job-frontier.js';
@@ -329,10 +330,18 @@ function enforceIdentityConsistency(request, workflow) {
 function buildResolvedRequestInput(item, workflow, { proxy, session } = {}) {
   const replayState = item.replayState ?? null;
   const workflowRequest = workflow.request ?? {};
+  const workflowGrpc =
+    workflow.grpc && typeof workflow.grpc === 'object' && !Array.isArray(workflow.grpc)
+      ? workflow.grpc
+      : {};
   const effectiveIdentity = mergeIdentityConfig(workflow.identity ?? null, session?._boundIdentityProfile ?? null);
   const workflowWebSocket =
     workflow.websocket && typeof workflow.websocket === 'object' && !Array.isArray(workflow.websocket)
       ? workflow.websocket
+      : {};
+  const itemGrpc =
+    item.grpc && typeof item.grpc === 'object' && !Array.isArray(item.grpc)
+      ? item.grpc
       : {};
   const itemWebSocket =
     item.websocket && typeof item.websocket === 'object' && !Array.isArray(item.websocket)
@@ -352,6 +361,10 @@ function buildResolvedRequestInput(item, workflow, { proxy, session } = {}) {
     session,
     identity: effectiveIdentity,
     replayState,
+    grpc: resolveReplayAwareValue({
+      ...workflowGrpc,
+      ...itemGrpc,
+    }, replayState),
     websocket: resolveReplayAwareValue({
       ...workflowWebSocket,
       ...itemWebSocket,
@@ -383,6 +396,7 @@ function buildQueuedRequestInput(item, workflow, priority) {
       ...(item.headers ?? {}),
     },
     body: item.body ?? workflowRequest.body,
+    grpc: item.grpc ?? workflow.grpc ?? undefined,
     priority,
   };
 }
@@ -403,6 +417,7 @@ function buildFailedRequestInput(item, workflow) {
     label: item.label ?? item.metadata?.label ?? null,
     userData: item.userData ?? {},
     metadata: item.metadata ?? {},
+    grpc: item.grpc ?? workflow.grpc ?? undefined,
   };
 }
 
@@ -859,6 +874,9 @@ export class JobRunner {
     this.runDir = resolve(projectRoot, workflow.output.dir, this.jobId);
     this.publicRunDir = this.distributedArtifactsEnabled ? `distributed://${this.jobId}` : this.runDir;
     this.logger = createLogger({ component: 'job-runner', jobId: this.jobId });
+    if (this.workflow.browser?.autoScroll?.enabled === true) {
+      this.runtimePlugins.push(createAutoScrollPlugin(this.workflow.browser.autoScroll));
+    }
     this.includePatterns = (this.workflow.discovery.include ?? []).map((entry) => new RegExp(entry));
     this.excludePatterns = (this.workflow.discovery.exclude ?? []).map((entry) => new RegExp(entry));
     this.discoveryFileExtensions = new Set(
@@ -979,6 +997,7 @@ export class JobRunner {
       label: source.label ?? source.metadata?.label ?? item?.label ?? item?.metadata?.label ?? null,
       userData: source.userData ?? item?.userData ?? {},
       metadata: source.metadata ?? item?.metadata ?? {},
+      grpc: source.grpc ?? item?.grpc ?? null,
       proxyServer: request?.proxy?.server ?? response?.proxyServer ?? null,
       sessionId: response?.sessionId ?? null,
       status: response?.status ?? null,

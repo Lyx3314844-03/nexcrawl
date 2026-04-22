@@ -24,6 +24,7 @@ export interface CrawlRequest {
   userData?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   replayState?: Record<string, unknown> | null;
+  grpc?: Partial<GrpcWorkflowConfig>;
   websocket?: Partial<WsRequest>;
 }
 
@@ -34,7 +35,7 @@ export interface SeedRequest extends CrawlRequest {
 export interface EnqueueRequest extends SeedRequest {}
 
 export interface CrawlResponse {
-  mode: 'http' | 'browser' | 'cheerio' | 'websocket';
+  mode: 'http' | 'browser' | 'cheerio' | 'websocket' | 'grpc';
   url: string;
   finalUrl: string;
   ok: boolean;
@@ -45,6 +46,8 @@ export interface CrawlResponse {
   proxyServer: string | null;
   fetchedAt: string;
   replayState?: Record<string, unknown> | null;
+  grpcStatus?: number | null;
+  transport?: Record<string, unknown> | null;
   debug?: {
     requests?: Array<{
       url: string;
@@ -56,6 +59,24 @@ export interface CrawlResponse {
       encodedDataLength?: number | null;
     }>;
   } | null;
+}
+
+export interface NetworkExtractRule {
+  name: string;
+  type: 'network';
+  path?: string;
+  transport?: string;
+  transports?: string[];
+  urlPattern?: string;
+  preferUrlPatterns?: string[];
+  avoidUrlPatterns?: string[];
+  flags?: string;
+  selection?: 'payload' | 'primary-data';
+  source?: 'request' | 'response';
+  requireJson?: boolean;
+  includeMeta?: boolean;
+  all?: boolean;
+  maxItems?: number;
 }
 
 // ─── Proxy ─────────────────────────────────────────────────────────
@@ -323,10 +344,62 @@ export interface WorkflowConfig {
   extract?: ExtractRule[];
   crawlPolicy?: CrawlPolicyConfig;
   rateLimiter?: RateLimiterConfig;
+  grpc?: GrpcWorkflowConfig;
   websocket?: Partial<WsRequest>;
   observability?: ObservabilityConfig;
   output?: OutputConfig;
   plugins?: PluginConfig[];
+}
+
+export interface GrpcWorkflowConfig {
+  enabled?: boolean;
+  service?: string;
+  method?: string;
+  path?: string;
+  metadata?: Record<string, string>;
+  descriptorPaths?: string[];
+  requestType?: string;
+  responseType?: string;
+  requestSchema?: Record<string, unknown> | null;
+  responseSchema?: Record<string, unknown> | null;
+  stream?: boolean;
+  bodyEncoding?: 'auto' | 'json' | 'protobuf-base64' | 'grpc-frame-base64' | 'utf8';
+  maxRetries?: number;
+  retryDelayMs?: number;
+}
+
+export interface WorkflowTemplateCatalogEntry {
+  id: string;
+  title: string;
+  description: string;
+  defaults: Record<string, unknown>;
+}
+
+export interface BuiltWorkflowTemplate {
+  workflow: WorkflowConfig;
+  suggestedWorkflowId: string;
+  template: {
+    sourceType: string;
+    extractPreset: string;
+  };
+}
+
+export interface BuiltUniversalWorkflow {
+  workflow: WorkflowConfig | null;
+  artifact: Record<string, unknown> | null;
+  artifactKind: string | null;
+  suggestedWorkflowId: string;
+  analysis: Record<string, unknown>;
+  plan: Record<string, unknown>;
+  primaryLane: string | null;
+  runnable: boolean;
+  unsupportedReason: string | null;
+  warnings: string[];
+  nextActions: string[];
+  template?: {
+    sourceType: string;
+    extractPreset: string;
+  };
 }
 
 export interface BrowserConfig {
@@ -340,6 +413,7 @@ export interface BrowserConfig {
   executablePath?: string;
   launchArgs?: string[];
   waitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
+  autoScroll?: BrowserAutoScrollConfig;
   debug?: {
     enabled?: boolean;
     captureScripts?: boolean;
@@ -447,6 +521,21 @@ export interface BrowserConfig {
   };
 }
 
+export interface BrowserAutoScrollConfig {
+  enabled?: boolean;
+  maxScrolls?: number;
+  delayMs?: number;
+  stabilityThresholdMs?: number;
+  maxStableIterations?: number;
+  scrollStep?: string;
+  loadMoreSelector?: string;
+  scrollTargetSelector?: string;
+  itemSelector?: string;
+  observeLazyContainers?: boolean;
+  requireBottom?: boolean;
+  sampleItems?: number;
+}
+
 export interface RetryConfig {
   attempts?: number;
   backoffMs?: number;
@@ -541,7 +630,7 @@ export interface DiscoveryLaneConfig {
 }
 
 export interface ExtractRule {
-  type: 'regex' | 'json' | 'script' | 'selector' | 'links' | 'surface' | 'reverse' | 'xpath' | 'media';
+  type: 'regex' | 'json' | 'script' | 'selector' | 'links' | 'surface' | 'reverse' | 'xpath' | 'media' | 'network';
   name: string;
   format?: 'url' | 'object';
   path?: string;
@@ -567,6 +656,14 @@ export interface ExtractRule {
   includeJsonLd?: boolean;
   includeNetwork?: boolean;
   includeResponse?: boolean;
+  transport?: string;
+  transports?: string[];
+  urlPattern?: string;
+  preferUrlPatterns?: string[];
+  avoidUrlPatterns?: string[];
+  selection?: 'payload' | 'primary-data';
+  source?: 'request' | 'response';
+  requireJson?: boolean;
   maxItems?: number;
 }
 
@@ -927,6 +1024,108 @@ export interface OmniCrawlerConfig {
   signer?: SignerConfig;
 }
 
+export type UniversalSourceKind = 'html' | 'json' | 'feed' | 'sitemap' | 'graphql' | 'websocket' | 'binary';
+export type UniversalHtmlPageKind = 'detail' | 'listing' | 'search' | 'generic';
+
+export interface UniversalFrontendProfile {
+  frameworks: string[];
+  hydrationSources: string[];
+  rootContainers: string[];
+  scriptCount: number;
+  inlineScriptCount: number;
+  visibleTextLength: number;
+  appShellLikely: boolean;
+  requiresBrowser: boolean;
+  sourceUrlHints: string[];
+}
+
+export interface UniversalScrollProfile {
+  infiniteScrollLikely: boolean;
+  virtualListLikely: boolean;
+  loadMoreLikely: boolean;
+  recommendedAutoScroll: boolean;
+  evidence: string[];
+  autoScroll: BrowserAutoScrollConfig | null;
+}
+
+export interface UniversalStrategyHints {
+  lane: 'default' | 'graphql' | 'browser-shell' | 'signer' | 'anti-bot' | 'native-app';
+  requiresSpecializedStrategy: boolean;
+  signerLikely: boolean;
+  antiBotLikely: boolean;
+  nativeAppLikely: boolean;
+  appWebViewLikely: boolean;
+  browserShellLikely: boolean;
+  graphqlLikely: boolean;
+  evidence: {
+    signerSignals: string[];
+    nativeSignals: string[];
+    appWebViewSignals: string[];
+    appType?: string | null;
+    protection: Record<string, unknown>;
+    cloudflare: Record<string, unknown>;
+  };
+  recommendedModules: string[];
+}
+
+export interface UniversalSourceProfile {
+  url: string;
+  kind: UniversalSourceKind;
+  pageKind: UniversalHtmlPageKind | null;
+  mode: 'http' | 'browser' | 'cheerio' | 'hybrid';
+  recommendedPreset: string;
+  supportedByUniversal: boolean;
+  unsupportedReason: string | null;
+  headers: Record<string, string>;
+  discovery: DiscoveryConfig | null;
+  extractRules: ExtractRule[] | null;
+  graphqlEndpoints: string[];
+  frontend: UniversalFrontendProfile | null;
+  scroll: UniversalScrollProfile | null;
+  strategyHints: UniversalStrategyHints;
+  contentType: string;
+}
+
+export interface MobileCrawlerConfig {
+  name?: string;
+  appiumUrl?: string;
+  router?: Router;
+  maxScreens?: number;
+  entryScreen?: string | { path?: string; label?: string | null; metadata?: Record<string, unknown> };
+  screenPathResolver?: (screen: {
+    path: string;
+    label: string | null;
+    metadata: Record<string, unknown>;
+    activity: string | null;
+    package: string | null;
+    source: string;
+  }) => Promise<string | null | undefined> | string | null | undefined;
+  viewport?: { width?: number; height?: number };
+  waitBetweenScreensMs?: number;
+  device?: Record<string, unknown> & {
+    platformName?: string;
+    automationName?: string;
+    deviceName?: string;
+  };
+}
+
+export interface MobileElementHandle {
+  elementId: string;
+  raw: Record<string, unknown>;
+  selector?: {
+    using: string;
+    value: string;
+  };
+}
+
+export interface MobileRunSummary {
+  status: 'completed' | 'aborted';
+  pages: number;
+  items: Record<string, unknown>[];
+  interactions: number;
+  sessionId: string | null;
+}
+
 export type PipelineStep = (item: Record<string, unknown>, ctx: CrawlContext) => Promise<Record<string, unknown> | null | undefined> | Record<string, unknown> | null | undefined;
 
 export interface PipelineResult {
@@ -1084,8 +1283,11 @@ export class SitemapCrawler extends OmniCrawler {
 export class GraphQLCrawler extends ApiJsonCrawler {
   constructor(config?: OmniCrawlerConfig);
   detectEndpoints(source: string, baseUrl: string): string[];
+  detectPersistedQueries(source: string, baseUrl: string): GraphQLPersistedQueryHint[];
   execute(options: GraphQLOptions): Promise<GraphQLResult>;
   introspect(endpoint: string, options?: Partial<GraphQLOptions>): Promise<GraphQLSchema | null>;
+  buildStarterOperation(schema: GraphQLSchema, options?: { operationType?: 'query' | 'mutation' | 'subscription'; fieldName?: string; operationName?: string; maxDepth?: number; maxFields?: number }): GraphQLStarterOperation | null;
+  buildRequestPlan(source: string, baseUrl: string, schema?: GraphQLSchema | null, options?: { endpoint?: string; maxDepth?: number; maxFields?: number }): GraphQLRequestPlan;
   fetchAllPages(options: {
     endpoint: string;
     query: string;
@@ -1100,7 +1302,75 @@ export class WebSocketCrawler extends HttpCrawler {
   setWebSocketOptions(options?: Partial<WsRequest>): this;
   connect(options: WsRequest): Promise<WsResponse>;
   subscribe(url: string, subscribeMessage: string | object, options?: Partial<WsRequest>): Promise<WsMessage[]>;
+  analyzeTranscript(transcript?: WsTranscriptEntry[], options?: { maxSamples?: number; heartbeatIntervalMs?: number | null }): WsTranscriptAnalysis;
+  buildSessionPlan(transcript?: WsTranscriptEntry[], options?: { maxSamples?: number; heartbeatIntervalMs?: number | null }): WsSessionPlan;
 }
+
+export class UniversalCrawler extends OmniCrawler {
+  constructor(config?: OmniCrawlerConfig & {
+    preferBrowser?: boolean;
+    maxPages?: number;
+    maxLinksPerPage?: number;
+    sameOriginOnly?: boolean;
+  });
+  static inferSourceProfile(source?: {
+    url?: string;
+    finalUrl?: string;
+    headers?: Record<string, string>;
+    contentType?: string;
+    body?: string | Buffer;
+    kind?: UniversalSourceKind;
+  }, options?: {
+    preferBrowser?: boolean;
+    maxPages?: number;
+    maxLinksPerPage?: number;
+    sameOriginOnly?: boolean;
+  }): UniversalSourceProfile;
+  configureSource(source?: Partial<UniversalSourceProfile> & Record<string, unknown>, options?: {
+    preferBrowser?: boolean;
+    maxPages?: number;
+    maxLinksPerPage?: number;
+    sameOriginOnly?: boolean;
+  }): UniversalSourceProfile;
+  analyzeTarget(url: string, options?: {
+    method?: string;
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+    preferBrowser?: boolean;
+    maxPages?: number;
+    maxLinksPerPage?: number;
+    sameOriginOnly?: boolean;
+  }): Promise<UniversalSourceProfile>;
+  prepareTarget(url: string, options?: {
+    method?: string;
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+    preferBrowser?: boolean;
+    maxPages?: number;
+    maxLinksPerPage?: number;
+    sameOriginOnly?: boolean;
+  }): Promise<UniversalSourceProfile>;
+}
+
+export declare function detectUniversalSourceType(source?: {
+  url?: string;
+  finalUrl?: string;
+  headers?: Record<string, string>;
+  contentType?: string;
+  body?: string | Buffer;
+}): UniversalSourceKind;
+export declare function inferUniversalSourceProfile(source?: {
+  url?: string;
+  finalUrl?: string;
+  headers?: Record<string, string>;
+  contentType?: string;
+  body?: string | Buffer;
+}, options?: {
+  preferBrowser?: boolean;
+  maxPages?: number;
+  maxLinksPerPage?: number;
+  sameOriginOnly?: boolean;
+}): UniversalSourceProfile;
 
 export class PuppeteerCrawler extends OmniCrawler {
   constructor(config?: OmniCrawlerConfig);
@@ -1120,6 +1390,88 @@ export class PlaywrightCoreCrawler extends OmniCrawler {
 
 export class PatchrightCrawler extends OmniCrawler {
   constructor(config?: OmniCrawlerConfig);
+}
+
+export class MobileCrawler {
+  constructor(config?: MobileCrawlerConfig);
+  readonly name: string;
+  readonly deviceConfig: Record<string, unknown>;
+  readonly appiumUrl: string;
+  readonly router: Router;
+  readonly session: { id: string; capabilities?: Record<string, unknown> } | null;
+  readonly state: {
+    isAborted: boolean;
+    processedPages: number;
+    items: Record<string, unknown>[];
+    interactions: number;
+    queue: Array<{ path: string; label: string | null; metadata: Record<string, unknown> }>;
+  };
+  run(): Promise<MobileRunSummary>;
+  stop(): this;
+  useRouter(router: Router): this;
+  setEntryScreen(screen: string | { path?: string; label?: string | null; metadata?: Record<string, unknown> }): this;
+  enqueueScreen(screen: string | { path?: string; label?: string | null; metadata?: Record<string, unknown> }): this;
+  findElement(selector: string | MobileElementHandle | { elementId?: string; using?: string; value?: string }): Promise<MobileElementHandle>;
+  click(selectorOrElement: string | MobileElementHandle | { elementId?: string; using?: string; value?: string }): Promise<MobileElementHandle>;
+  tap(selectorOrElement: string | MobileElementHandle | { elementId?: string; using?: string; value?: string }): Promise<MobileElementHandle>;
+  type(selectorOrElement: string | MobileElementHandle | { elementId?: string; using?: string; value?: string }, text: string, options?: { clearFirst?: boolean }): Promise<MobileElementHandle>;
+  swipe(directionOrOptions?: 'up' | 'down' | 'left' | 'right' | { startX: number; startY: number; endX: number; endY: number; holdMs?: number; durationMs?: number }): Promise<void>;
+  back(): Promise<void>;
+  buildAppiumUrl(path: string): string;
+}
+
+export interface AuthHandler {
+  init(): Promise<void>;
+  getAuthHeaders(request?: { url?: string; method?: string; headers?: Record<string, string> }): Promise<Record<string, string>>;
+  refresh(): Promise<boolean> | boolean;
+  isExpiring?(): boolean;
+  applyToRequest?(request?: { url?: string; method?: string; headers?: Record<string, string>; body?: string }): Promise<{ url?: string; method?: string; headers?: Record<string, string>; body?: string }>;
+  teardown(): void;
+  preSeedChallenge?(wwwAuth: string): void;
+}
+
+export declare function createAuthHandler(config: Record<string, unknown> & { type: 'oauth2' | 'jwt' | 'digest' | 'basic' | 'bearer' | 'api-key' | 'cookie' }): AuthHandler;
+
+export interface AuthStateArtifacts {
+  loginWall: { detected: boolean; reasons: string[] };
+  cookieNames: string[];
+  cookieValues: Record<string, string>;
+  hiddenFields: Record<string, string>;
+  csrfFields: string[];
+  headerTokens: Record<string, unknown>;
+  tokenFields: Record<string, unknown>;
+  refreshLikely: boolean;
+}
+
+export interface AuthStatePlan {
+  kind: 'auth-state-plan';
+  loginWallDetected: boolean;
+  loginWallReasons: string[];
+  sessionLikelyRequired: boolean;
+  requiredCookies: string[];
+  cookieValues: Record<string, string>;
+  requiredHeaders: Record<string, unknown>;
+  replayState: Record<string, unknown>;
+  refreshLikely: boolean;
+  csrfFields: string[];
+}
+
+export declare function detectLoginWall(payload?: { status?: number; headers?: Record<string, unknown>; body?: string; html?: string; text?: string }): { detected: boolean; reasons: string[] };
+export declare function extractAuthArtifacts(payload?: { status?: number; headers?: Record<string, unknown>; body?: string | Record<string, unknown>; html?: string; text?: string; extracted?: Record<string, unknown> }): AuthStateArtifacts;
+export declare function buildAuthStatePlan(payload?: { status?: number; headers?: Record<string, unknown>; body?: string | Record<string, unknown>; html?: string; text?: string; extracted?: Record<string, unknown> }): AuthStatePlan;
+export declare function deriveAuthStatePlanFromResults(results?: Array<{ url?: string; finalUrl?: string; status?: number; replayState?: Record<string, unknown>; extracted?: Record<string, unknown>; diagnostics?: Record<string, unknown> }>, options?: Record<string, unknown>): AuthStatePlan;
+
+export class TorCrawler extends HttpCrawler {
+  constructor(config?: OmniCrawlerConfig & {
+    torProxy?: string;
+    torControlPort?: number;
+    torControlPassword?: string;
+  });
+  torProxy: string;
+  torControlPort: number;
+  torControlPassword?: string;
+  renewIdentity(): Promise<boolean>;
+  checkTorConnection(): Promise<{ isTor: boolean; ip: string }>;
 }
 
 export declare function extractMediaAssets(response: CrawlResponse, rule?: ExtractRule): Array<MediaAsset | string>;
@@ -1174,6 +1526,39 @@ export interface KeyValueStoreInfo {
   metadata?: Record<string, unknown>;
   recordCount: number;
   records?: KeyValueRecord[];
+}
+
+export interface SessionSnapshot {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  cookies: Array<Record<string, unknown>>;
+  origins: Record<string, { localStorage?: Record<string, string>; sessionStorage?: Record<string, string> }>;
+  auth: {
+    headers: Record<string, unknown>;
+    query: Record<string, unknown>;
+    cookies: Record<string, unknown>;
+    tokens: Record<string, unknown>;
+    replayState: Record<string, unknown>;
+  };
+  lastUrl: string | null;
+}
+
+export declare class SessionStore {
+  constructor(options?: { projectRoot?: string });
+  init(): Promise<this>;
+  buildSessionPath(sessionId: string): string;
+  load(sessionId: string): Promise<SessionSnapshot>;
+  save(snapshot: Partial<SessionSnapshot> & { id: string }): Promise<SessionSnapshot>;
+  list(limit?: number): Promise<Array<{ id: string; updatedAt: string; createdAt: string; cookieCount: number; originCount: number; lastUrl: string | null }>>;
+  buildCookieHeader(snapshot: SessionSnapshot, targetUrl: string): string;
+  buildRequestHeaders(snapshot: SessionSnapshot, targetUrl: string, options?: { headers?: Record<string, string>; includeCookies?: boolean }): Record<string, unknown>;
+  mergeHttpResponse(sessionId: string, targetUrl: string, setCookieHeaders?: string[], options?: { headers?: Record<string, unknown>; body?: Record<string, unknown> | string; replayState?: Record<string, unknown> }): Promise<SessionSnapshot>;
+  mergeAuthState(sessionId: string, authState?: Partial<SessionSnapshot['auth']>): Promise<SessionSnapshot>;
+  buildRequestState(sessionId: string, targetUrl: string, options?: { headers?: Record<string, string>; includeCookies?: boolean }): Promise<{ headers: Record<string, unknown>; replayState: Record<string, unknown>; snapshot: SessionSnapshot }>;
+  setOriginStorage(sessionId: string, origin: string, values?: { localStorage?: Record<string, string> | null; sessionStorage?: Record<string, string> | null }): Promise<SessionSnapshot>;
+  restoreBrowserSession(options: { sessionId: string; context: unknown; page: unknown }): Promise<SessionSnapshot>;
+  captureBrowserSession(options: { sessionId: string; context: { cookies(): Promise<Array<Record<string, unknown>>> }; page: unknown; finalUrl?: string | null; captureStorage?: boolean }): Promise<SessionSnapshot>;
 }
 
 // ─── Export ────────────────────────────────────────────────────────
@@ -1270,6 +1655,7 @@ export interface FailedRequestRecord {
   label: string | null;
   userData: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  grpc?: Partial<GrpcWorkflowConfig> | null;
   proxyServer: string | null;
   sessionId: string | null;
   status: number | null;
@@ -1303,6 +1689,37 @@ export interface ReplayWorkflowTemplate {
     instructions: string[];
   };
 }
+
+export interface LoginRecordingSession {
+  id?: string;
+  name?: string;
+  url: string;
+  steps?: Array<{
+    type: string;
+    selector?: string | null;
+    value?: unknown;
+    durationMs?: number;
+    direction?: string;
+    keyPress?: string;
+    waitForNavigation?: boolean;
+  }>;
+  authStatePlan?: AuthStatePlan | null;
+  startedAt?: string;
+  stoppedAt?: string;
+  createdAt?: string;
+}
+
+export declare function buildReplayWorkflowFromRecording(options: {
+  session: LoginRecordingSession;
+  options?: {
+    url?: string;
+    authStatePlan?: AuthStatePlan | null;
+    timeoutMs?: number;
+    sleepMs?: number;
+    headless?: boolean;
+    extract?: ExtractRule[];
+  };
+}): WorkflowConfig;
 
 export interface HookResult {
   skip?: boolean;
@@ -1504,14 +1921,24 @@ export interface WsMessage {
 export interface WsRequest {
   url: string;
   headers?: Record<string, string>;
-  sendMessage?: string | object | null;
-  sendMessages?: (string | object)[];
+  sendMessage?: string | object | ((context: Record<string, unknown>) => unknown) | null;
+  sendMessages?: (string | object | ((context: Record<string, unknown>) => unknown))[];
   collectMs?: number;
   maxMessages?: number;
-  terminateOn?: string;
+  terminateOn?: string | RegExp;
   proxy?: string;
   connectTimeoutMs?: number;
   binary?: boolean;
+  heartbeatIntervalMs?: number;
+  heartbeatTimeoutMs?: number;
+  heartbeatMessage?: string | object | ((context: Record<string, unknown>) => unknown) | null;
+  reconnectAttempts?: number;
+  reconnectDelayMs?: number;
+  reconnectOnCloseCodes?: number[];
+  shouldReconnect?: (result: WsResponse, context: Record<string, unknown>) => boolean | Promise<boolean>;
+  onMessage?: (message: WsMessage, context: Record<string, unknown>) => void | Promise<void>;
+  refreshOn?: string | RegExp | ((message: WsMessage, context: Record<string, unknown>) => boolean | Promise<boolean>);
+  authRefresh?: (message: WsMessage, context: Record<string, unknown>) => unknown | Promise<unknown>;
 }
 
 export interface WsResponse {
@@ -1523,16 +1950,98 @@ export interface WsResponse {
   closeReason: string | null;
   closeCode: number | null;
   error: string | null;
+  attemptsUsed: number;
+  reconnects: number;
+}
+
+export interface WsTranscriptEntry {
+  direction?: 'in' | 'out';
+  message?: string | object | Buffer;
+  payload?: string | object | Buffer;
+}
+
+export interface WsClassifiedMessage {
+  direction: 'in' | 'out';
+  kind: 'heartbeat' | 'auth' | 'subscribe' | 'ack' | 'error' | 'data' | 'unknown';
+  text: string | null;
+  json: unknown | null;
+  binary: Buffer | null;
+}
+
+export interface WsTranscriptAnalysis {
+  total: number;
+  kinds: Record<string, number>;
+  authLikely: boolean;
+  subscriptionLikely: boolean;
+  requiresHeartbeat: boolean;
+  likelyAuthMessage: unknown;
+  likelySubscribeMessage: unknown;
+  likelyHeartbeatMessage: unknown;
+  samples: Array<{
+    direction: 'in' | 'out';
+    kind: WsClassifiedMessage['kind'];
+    text: string | null;
+    json: unknown | null;
+  }>;
+}
+
+export interface WsSessionPlan {
+  kind: 'websocket-session-plan';
+  auth: { enabled: boolean; message: unknown };
+  subscribe: { enabled: boolean; message: unknown };
+  heartbeat: { enabled: boolean; message: unknown; intervalHintMs: number | null };
+  reconnectRecommended: boolean;
+  analysis: WsTranscriptAnalysis;
 }
 
 export declare function fetchWebSocket(request: WsRequest): Promise<WsResponse>;
 export declare function subscribeWebSocket(url: string, subscribeMessage: string | object, options?: Partial<WsRequest>): Promise<WsMessage[]>;
+export declare function classifyWebSocketMessage(entry: WsTranscriptEntry | string | object | Buffer): WsClassifiedMessage;
+export declare function analyzeWebSocketTranscript(transcript?: WsTranscriptEntry[], options?: { maxSamples?: number; heartbeatIntervalMs?: number | null }): WsTranscriptAnalysis;
+export declare function buildWebSocketSessionPlan(transcript?: WsTranscriptEntry[], options?: { maxSamples?: number; heartbeatIntervalMs?: number | null }): WsSessionPlan;
+
+// ─── gRPC Workflow / Runtime ───────────────────────────────────────
+
+export declare class GrpcCrawler {
+  endpoint: string;
+  metadata: Record<string, string>;
+  maxRetries: number;
+  retryDelayMs: number;
+  schemas: Map<string, { input?: Record<string, unknown>; output?: Record<string, unknown> }>;
+  constructor(options: {
+    endpoint: string;
+    metadata?: Record<string, string>;
+    maxRetries?: number;
+    retryDelayMs?: number;
+    retry?: { maxRetries?: number; backoffMs?: number };
+    pool?: unknown;
+  });
+  registerSchema(service: string, method: string, responseSchema?: Record<string, unknown>, requestSchema?: Record<string, unknown>): void;
+  request(service: string, method: string, message?: unknown, callMeta?: Record<string, string>): Promise<{ data: Record<string, unknown>; grpcStatus: number }>;
+  serverStream(service: string, method: string, message?: unknown, callMeta?: Record<string, string>): Promise<Record<string, unknown>[]>;
+  call(service: string, method: string, message?: unknown, callMeta?: Record<string, string>): Promise<Record<string, unknown>>;
+  close(): Promise<void>;
+}
+
+export declare function fetchGrpcResponse(request: CrawlRequest & { grpc: GrpcWorkflowConfig }, options?: Partial<GrpcWorkflowConfig>): Promise<CrawlResponse>;
+
+// ─── Workflow Builders ─────────────────────────────────────────────
+
+export declare function getWorkflowTemplateCatalog(): WorkflowTemplateCatalogEntry[];
+export declare function buildWorkflowFromTemplate(input?: Record<string, unknown>): BuiltWorkflowTemplate;
+export declare function buildPreviewWorkflow(input?: {
+  url: string;
+  sourceType?: string;
+  renderWaitMs?: number;
+  rule: Record<string, unknown>;
+}): WorkflowConfig;
+export declare function buildWorkflowFromUniversalTarget(input?: Record<string, unknown>): BuiltUniversalWorkflow;
 
 // ─── GraphQL ──────────────────────────────────────────────────────
 
 export interface GraphQLOptions {
   endpoint: string;
-  query: string;
+  query?: string;
   variables?: Record<string, unknown>;
   operationName?: string;
   headers?: Record<string, string>;
@@ -1552,7 +2061,7 @@ export interface GraphQLSchemaType {
   name: string;
   kind: string;
   description: string | null;
-  fields: { name: string; type: string | null; args: string[] }[];
+  fields: { name: string; type: string | null; args: Array<{ name: string; type: string | null }> }[];
 }
 
 export interface GraphQLSchema {
@@ -1562,9 +2071,43 @@ export interface GraphQLSchema {
   types: GraphQLSchemaType[];
 }
 
+export interface GraphQLPersistedQueryHint {
+  hash: string;
+  endpoint: string | null;
+  transport: 'persisted-query';
+}
+
+export interface GraphQLStarterSelectionField {
+  name: string;
+  type: string | null;
+  selection?: GraphQLStarterSelectionField[];
+}
+
+export interface GraphQLStarterOperation {
+  operationType: 'query' | 'mutation' | 'subscription' | string;
+  operationName: string;
+  rootType: string | null;
+  fieldName: string;
+  query: string;
+  variables: Record<string, unknown>;
+  selection: GraphQLStarterSelectionField[];
+}
+
+export interface GraphQLRequestPlan {
+  endpoints: string[];
+  recommendedEndpoint: string | null;
+  persistedQueries: GraphQLPersistedQueryHint[];
+  starterOperations: GraphQLStarterOperation[];
+  paginationStrategy: 'cursor' | 'offset' | null;
+  authLikely: boolean;
+}
+
 export declare function detectGraphQLEndpoints(source: string, baseUrl: string): string[];
+export declare function extractPersistedQueryHints(source: string, baseUrl?: string): GraphQLPersistedQueryHint[];
 export declare function executeGraphQL(options: GraphQLOptions): Promise<GraphQLResult>;
 export declare function introspectSchema(endpoint: string, options?: Partial<GraphQLOptions>): Promise<GraphQLSchema | null>;
+export declare function buildGraphQLStarterOperation(schema: GraphQLSchema, options?: { operationType?: 'query' | 'mutation' | 'subscription'; fieldName?: string; operationName?: string; maxDepth?: number; maxFields?: number }): GraphQLStarterOperation | null;
+export declare function buildGraphQLRequestPlan(options?: { source?: string; baseUrl?: string; endpoint?: string; schema?: GraphQLSchema | null; maxDepth?: number; maxFields?: number }): GraphQLRequestPlan;
 export declare function detectGraphQLPagination(data: unknown): { hasNextPage: boolean; endCursor: string | null; nextOffset: number | null };
 export declare function fetchAllPages(options: { endpoint: string; query: string; variables?: Record<string, unknown>; maxPages?: number; headers?: Record<string, string> }): Promise<{ pages: unknown[]; cursors: string[] }>;
 

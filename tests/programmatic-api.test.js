@@ -28,6 +28,8 @@ import {
   ItemPipeline,
   CrawlContext,
   GracefulShutdown,
+  buildWorkflowFromTemplate,
+  buildWorkflowFromUniversalTarget,
 } from "../src/api/index.js";
 import { validateWorkflow } from "../src/schemas/workflow-schema.js";
 import { getCapabilities } from "../src/server.js";
@@ -58,6 +60,17 @@ test("GracefulShutdown runs callbacks", async () => { const s = new GracefulShut
 
 // --- OmniCrawler Tests ---
 test("OmniCrawler defaults", () => { const c = new OmniCrawler(); assert.equal(c.name, "default"); assert.equal(c.isRunning, false); assert.equal(c.lastSummary, null); });
+test("programmatic API exports workflow scaffold builders", () => {
+  assert.equal(typeof buildWorkflowFromTemplate, "function");
+  assert.equal(typeof buildWorkflowFromUniversalTarget, "function");
+
+  const built = buildWorkflowFromUniversalTarget({
+    url: "https://example.com/graphql",
+    body: "query Viewer { viewer { id } }",
+  });
+  assert.equal(built.primaryLane, "graphql-semantics");
+  assert.equal(built.workflow?.request?.method, "POST");
+});
 test("OmniCrawler constructor honors global performance defaults", () => {
   setGlobalConfig({
     performance: {
@@ -406,6 +419,23 @@ test("OmniCrawler useItemPipeline type", () => { assert.throws(() => new OmniCra
 test("OmniCrawler gracefulShutdown", () => { const c = new OmniCrawler(); assert.equal(c.gracefulShutdown({ timeoutMs: 5000 }), c); });
 test("OmniCrawler buildWorkflow no seeds", () => { assert.throws(() => new OmniCrawler()._buildWorkflow(), /No seed URLs/); });
 test("OmniCrawler buildWorkflow valid", () => { const w = new OmniCrawler({name:"t"}).addSeedUrls("https://example.com").setMode("http").setConcurrency(2).setMaxDepth(1)._buildWorkflow(); assert.equal(w.name, "t"); assert.deepEqual(w.seedUrls, ["https://example.com"]); assert.equal(w.concurrency, 2); });
+test("OmniCrawler useAutoScroll persists browser autoScroll workflow config", () => {
+  const workflow = new OmniCrawler({ name: "scroll-workflow" })
+    .addSeedUrls("https://example.com/feed")
+    .setMode("browser")
+    .useAutoScroll({
+      maxScrolls: 12,
+      delayMs: 150,
+      itemSelector: '[role="listitem"]',
+    })
+    ._buildWorkflow();
+
+  assert.equal(workflow.browser.autoScroll.enabled, true);
+  assert.equal(workflow.browser.autoScroll.maxScrolls, 12);
+  assert.equal(workflow.browser.autoScroll.delayMs, 150);
+  assert.equal(workflow.browser.autoScroll.itemSelector, '[role="listitem"]');
+  assert.equal(validateWorkflow(workflow).browser.autoScroll.enabled, true);
+});
 test("OmniCrawler buildWorkflow preserves seed request metadata", () => {
   const workflow = new OmniCrawler({ name: "seed-requests" })
     .addRequests([{
@@ -522,6 +552,11 @@ test("Capabilities version stays aligned with package version", () => {
   const capabilities = getCapabilities();
   assert.equal(capabilities.version, packageVersion);
   assert.ok(capabilities.fetchers.includes("cheerio"));
+  assert.ok(capabilities.fetchers.includes("universal"));
+  assert.ok(capabilities.fetchers.includes("mobile-appium"));
+  assert.ok(capabilities.presets.includes("UniversalCrawler"));
+  assert.ok(capabilities.presets.includes("MobileCrawler"));
+  assert.ok(capabilities.presets.includes("TorCrawler"));
   assert.equal(capabilities.surfaces.reverse.importPath, "omnicrawl/reverse");
   assert.equal(capabilities.compliance.reverseModulesOptIn, true);
 });

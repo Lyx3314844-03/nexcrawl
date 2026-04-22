@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { dirname, resolve } from 'node:path';
+import { dirname, extname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readFile } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import { createLogger } from './core/logger.js';
-import { writeJson, ensureDir } from './utils/fs.js';
+import { writeJson, ensureDir, readJson } from './utils/fs.js';
 import { loadWorkflow } from './runtime/workflow-loader.js';
 import { runWorkflow } from './runtime/job-runner.js';
 import { HistoryStore } from './runtime/history-store.js';
@@ -18,6 +18,7 @@ import { SqliteJobStore } from './runtime/sqlite-job-store.js';
 import { SqliteScheduleManager } from './runtime/sqlite-scheduler.js';
 import { resolveDistributedConfig } from './runtime/distributed-config.js';
 import { inspectOptionalIntegrations, probeIntegration, probeIntegrations } from './runtime/integration-registry.js';
+import { buildWorkflowFromTemplate, buildWorkflowFromUniversalTarget } from './runtime/workflow-templates.js';
 import { MediaCrawler, Router, buildMediaExtractRules, filterMediaAssets, retryFailedMediaDownloads } from './index.js';
 import { getCapabilities, startServer } from './server.js';
 
@@ -65,7 +66,7 @@ function printHelp() {
       '  omnicrawl run <workflow.json> [--cwd <dir>]',
       '  omnicrawl media [<url...>] [--input-file <file>] [--retry-failed-from <failed.ndjson>] [--mode browser|http] [--kind image|video|audio[,..]] [--download true|false] [--retry-attempts <n>] [--retry-backoff-ms <ms>] [--max-depth <n>] [--max-pages <n>] [--include <regex[,..]>] [--exclude <regex[,..]>] [--media-include <regex[,..]>] [--media-exclude <regex[,..]>] [--output-dir <dir>] [--cwd <dir>]',
       '  omnicrawl serve [--port 3100] [--host 127.0.0.1] [--api-key <key>] [--cwd <dir>]',
-      '  omnicrawl scaffold [target.json]',
+      '  omnicrawl scaffold [target.json|output.workflow.json] [--output <workflow.json>] [--cwd <dir>]',
       '  omnicrawl init [dir]                 Generate a starter crawler script with programmatic API',
       '  omnicrawl register <workflow.json> [--id <workflowId>] [--cwd <dir>]',
       '  omnicrawl workflows [--cwd <dir>]',
@@ -147,6 +148,64 @@ function starterWorkflow() {
       console: true,
     },
   };
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isTemplateScaffoldInput(value) {
+  return isPlainObject(value)
+    && typeof value.seedUrl === 'string'
+    && (typeof value.sourceType === 'string' || typeof value.extractPreset === 'string');
+}
+
+function isUniversalScaffoldInput(value) {
+  return isPlainObject(value)
+    && ['url', 'target', 'source', 'app', 'body', 'headers', 'kind'].some((key) => key in value);
+}
+
+async function pathExists(targetPath) {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function inferScaffoldOutputPath({ cwd, inputPath, outputPath, suggestedWorkflowId, kind = 'workflow' }) {
+  if (outputPath) {
+    return resolve(cwd, outputPath);
+  }
+
+  if (inputPath) {
+    const lower = inputPath.toLowerCase();
+    if (kind === 'workflow') {
+      if (lower.endsWith('.workflow.json')) {
+        return resolve(cwd, inputPath);
+      }
+      if (lower.endsWith('.scaffold.json')) {
+        return resolve(cwd, inputPath.replace(/\.scaffold\.json$/i, '.workflow.json'));
+      }
+    } else if (kind === 'artifact') {
+      if (lower.endsWith('.scaffold.json')) {
+        return resolve(cwd, inputPath);
+      }
+      if (lower.endsWith('.workflow.json')) {
+        return resolve(cwd, inputPath.replace(/\.workflow\.json$/i, '.scaffold.json'));
+      }
+    }
+
+    const normalizedExt = extname(inputPath).toLowerCase();
+    if (normalizedExt === '.json') {
+      const suffix = kind === 'workflow' ? '.workflow.json' : '.scaffold.json';
+      return resolve(cwd, inputPath.replace(/\.json$/i, suffix));
+    }
+  }
+
+  const suffix = kind === 'workflow' ? '.workflow.json' : '.scaffold.json';
+  return resolve(cwd, `${suggestedWorkflowId ?? 'starter'}${suffix}`);
 }
 
 async function runMediaCommand(targetUrl, options = {}) {
@@ -548,9 +607,49 @@ export async function runCommand(args) {
     }
 
     case 'scaffold': {
-      const targetPath = resolve(process.cwd(), maybeTarget ?? 'examples/starter.workflow.json');
+      const cwd = options.cwd ? resolve(String(options.cwd)) : process.cwd();
+      const candidatePath = maybeTarget ? resolve(cwd, maybeTarget) : null;
+
+      if (!candidatePath) {
+        const targetPath = resolve(cwd, 'examples/starter.workflow.json');
+        await ensureDir(dirname(targetPath));
+        await writeJson(targetPath, starterWorkflow());
+        process.stdout.write(`${targetPath}\n`);
+        return;
+      }
+
+      if (!(await pathExists(candidatePath))) {
+        await ensureDir(dirname(candidatePath));
+        await writeJson(candidatePath, starterWorkflow());
+        process.stdout.write(`${candidatePath}\n`);
+        return;
+      }
+
+      const scaffoldInput = await readJson(candidatePath);
+      let item;
+      if (isTemplateScaffoldInput(scaffoldInput)) {
+        item = buildWorkflowFromTemplate(scaffoldInput);
+      } else if (isUniversalScaffoldInput(scaffoldInput)) {
+        item = buildWorkflowFromUniversalTarget(scaffoldInput);
+      } else {
+        throw new Error('scaffold input must be a template spec or a universal target spec');
+      }
+
+      const payload = item.workflow ?? item.artifact;
+      const outputKind = item.workflow ? 'workflow' : 'artifact';
+      if (!payload) {
+        throw new Error(item.unsupportedReason ?? 'target could not be scaffolded into a runnable workflow');
+      }
+
+      const targetPath = inferScaffoldOutputPath({
+        cwd,
+        inputPath: maybeTarget,
+        outputPath: options.output ? String(options.output) : null,
+        suggestedWorkflowId: item.suggestedWorkflowId,
+        kind: outputKind,
+      });
       await ensureDir(dirname(targetPath));
-      await writeJson(targetPath, starterWorkflow());
+      await writeJson(targetPath, payload);
       process.stdout.write(`${targetPath}\n`);
       return;
     }

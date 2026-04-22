@@ -36,7 +36,7 @@ export { detectWafSurface, validateExtractedSchema, assessResultQuality, Quality
 export { analyzeBaseline } from './runtime/baseline-analyzer.js';
 export { analyzeTrends } from './runtime/trend-analyzer.js';
 export { analyzeRunDiagnostics, buildReplayRecipe, buildResultIdentitySnapshot, inspectResultDiagnostics } from './runtime/reverse-diagnostics.js';
-export { applyWorkflowPatch, buildReplayWorkflow, buildReplayWorkflowPatchTemplate } from './runtime/replay-workflow.js';
+export { applyWorkflowPatch, buildReplayWorkflow, buildReplayWorkflowPatchTemplate, buildReplayWorkflowFromRecording } from './runtime/replay-workflow.js';
 export { dispatchAlerts } from './runtime/alert-dispatcher.js';
 export { AlertOutbox, AlertOutboxService } from './runtime/alert-outbox.js';
 export { CrawlPolicyManager, parseRobotsTxt, evaluateRobotsAccess } from './runtime/crawl-policy.js';
@@ -167,11 +167,14 @@ export {
   SitemapCrawler,
   GraphQLCrawler,
   WebSocketCrawler,
+  UniversalCrawler,
   PuppeteerCrawler,
   PuppeteerCoreCrawler,
   PlaywrightCrawler,
   PlaywrightCoreCrawler,
   PatchrightCrawler,
+  detectUniversalSourceType,
+  inferUniversalSourceProfile,
 } from './api/crawler-presets.js';
 
 
@@ -228,16 +231,32 @@ export { discoverNextPage, getNextPageUrl } from './runtime/pagination-discovery
 export { sendAlert, sendSlackAlert, sendDingTalkAlert, sendEmailAlert } from './runtime/alert-notifier.js';
 
 // WebSocket crawler
-export { fetchWebSocket, subscribeWebSocket } from './fetchers/ws-fetcher.js';
+export {
+  fetchWebSocket,
+  subscribeWebSocket,
+  classifyWebSocketMessage,
+  analyzeWebSocketTranscript,
+  buildWebSocketSessionPlan,
+} from './fetchers/ws-fetcher.js';
 
 // GraphQL support
-export { detectGraphQLEndpoints, executeGraphQL, introspectSchema, detectGraphQLPagination, fetchAllPages } from './fetchers/graphql-fetcher.js';
+export {
+  detectGraphQLEndpoints,
+  extractPersistedQueryHints,
+  executeGraphQL,
+  introspectSchema,
+  buildGraphQLStarterOperation,
+  buildGraphQLRequestPlan,
+  detectGraphQLPagination,
+  fetchAllPages,
+} from './fetchers/graphql-fetcher.js';
 
 // AI, Mobile, and gRPC capabilities
 export { AiExtractor, useAiExtraction } from './api/ai-extractor.js';
 export { AiAgent } from './api/ai-agent.js';
 export { DataValidator, useDataValidation } from './api/data-validator.js';
 export { MfaHandler, solveLoginMfa } from './api/mfa-handler.js';
+export { createAuthHandler } from './middleware/auth-handler.js';
 export { MobileCrawler } from './runtime/mobile-crawler.js';
 export { NativeBridge } from './reverse/native-bridge.js';
 export { V8BytecodeAnalyzer } from './reverse/v8-bytecode-analyzer.js';
@@ -249,10 +268,24 @@ export { WebhookDispatcher } from './runtime/webhook-dispatcher.js';
 export { BrowserPoolGuard } from './runtime/browser-pool-guard.js';
 export { ClusterPartitionManager } from './runtime/cluster-partition-manager.js';
 export { ShardedDbSink } from './runtime/sharded-db-sink.js';
+export { detectLoginWall, extractAuthArtifacts, buildAuthStatePlan, deriveAuthStatePlanFromResults } from './runtime/auth-state.js';
 export { buildHardenedEnvironmentInjection } from './reverse/v-stealth.js';
-export { GrpcCrawler } from './runtime/grpc-crawler.js';
+export { GrpcCrawler, fetchGrpcResponse } from './runtime/grpc-crawler.js';
+export { buildWorkflowFromTemplate, buildWorkflowFromUniversalTarget, buildPreviewWorkflow, getWorkflowTemplateCatalog } from './runtime/workflow-templates.js';
 export { JobInputBuilder } from './runtime/job-input-builder.js';
 export { JobDiscovery } from './runtime/job-discovery.js';
+export { classifyLoginObservation, buildLoginRecoveryPlan, LoginStateMachine } from './runtime/login-state-machine.js';
+export { classifyInteractiveAuthRequirement, buildInteractiveLoginPlan, HumanInteractionBroker } from './runtime/interactive-auth-executor.js';
+export { AccountPool } from './runtime/account-pool.js';
+export { buildAppCapturePlan, mergeAppCaptureStreams } from './runtime/app-capture-platform.js';
+export { DevicePool, buildMobileAppExecutionPlan, executeMobileAppPlan } from './runtime/mobile-device-platform.js';
+export { detectAttestationGate, buildAttestationCompliancePlan } from './runtime/attestation-policy.js';
+export { inferGraphQLSemantics, inferWebSocketSemantics, inferGrpcSemantics } from './runtime/protocol-semantics.js';
+export { analyzeUniversalTarget, buildUniversalCrawlPlan } from './runtime/universal-crawl-planner.js';
+export { AntiBotLab, detectDegradedPage } from './runtime/anti-bot-lab.js';
+export { ResourceScheduler, buildDagExecutionPlan, createLineageRecord, evolveSchemaVersion } from './runtime/platform-orchestration.js';
+export { generalizeRecordingSteps, buildSelectorRepairPlan, learnLoginSuccessPredicate, buildAutoPatchPlan } from './runtime/self-healing.js';
+export { AccessPolicy, AuditLogger, CredentialVault, TenantRegistry } from './runtime/governance.js';
 
 // WAF bypass
 export { detectWaf, getWafBypassConfig, buildAkamaiHeaders, buildPerimeterXHeaders, buildDataDomeHeaders, buildPerimeterXEvasionScript, handleDataDomeCookieChallenge } from './reverse/waf-bypass.js';

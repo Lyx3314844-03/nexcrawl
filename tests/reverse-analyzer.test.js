@@ -134,7 +134,7 @@ test('ai surface analyzer summarizes obfuscation, request params, response schem
   assert.equal(result.protection.captcha.vendor, 'recaptcha');
   assert.equal(result.ai.executed, true);
   assert.equal(result.ai.summary.classification, 'waf');
-  assert.match(result.ai.prompt.system, /defensive analysis assistant/i);
+  assert.equal(result.prompts, null);
 });
 
 test('ai surface analyzer can derive code evidence from inline scripts when code is omitted', async () => {

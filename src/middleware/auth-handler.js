@@ -1,15 +1,14 @@
 /**
- * OAuth2 / JWT / Digest authentication middleware.
+ * Authentication middleware.
  *
- * Automatically handles OAuth2 authorization flows (authorization code,
- * client credentials, refresh token), JWT token lifecycle (acquire +
- * auto-refresh before expiry), and HTTP Digest authentication.
- *
- * Usage:
- *   import { createAuthHandler } from '../middleware/auth-handler.js';
- *   const auth = createAuthHandler({ type: 'oauth2', ... });
- *   await auth.init();
- *   const headers = await auth.getAuthHeaders();
+ * Supports:
+ * - OAuth2
+ * - JWT / token endpoints
+ * - HTTP Digest
+ * - Basic auth
+ * - Static bearer tokens
+ * - API keys (header/query/cookie)
+ * - Static cookies
  */
 
 import { createLogger } from '../core/logger.js';
@@ -18,30 +17,85 @@ import { createHash } from 'node:crypto';
 
 const log = createLogger('auth-handler');
 
-// ─── Factory ────────────────────────────────────────────────────────────────
+function resolvePath(obj, path) {
+  return String(path ?? '').split('.').reduce((acc, key) => acc?.[key], obj);
+}
 
-/**
- * Create an authentication handler based on the specified type.
- *
- * @param {object} config
- * @param {'oauth2'|'jwt'|'digest'} config.type - Authentication type
- * @returns {object} Auth handler with init(), getAuthHeaders(), refresh(), teardown()
- */
+function ensureRequestShape(request = {}) {
+  return {
+    ...(request ?? {}),
+    url: request?.url ?? '',
+    headers: { ...(request?.headers ?? {}) },
+  };
+}
+
+function setHeader(headers = {}, name, value) {
+  const next = { ...(headers ?? {}) };
+  const target = String(name).toLowerCase();
+  for (const key of Object.keys(next)) {
+    if (String(key).toLowerCase() === target) {
+      delete next[key];
+    }
+  }
+  next[name] = value;
+  return next;
+}
+
+function appendCookieHeader(existing = '', name, value) {
+  const entry = `${name}=${value}`;
+  if (!existing) {
+    return entry;
+  }
+  const current = String(existing);
+  return current.includes(entry) ? current : `${current}; ${entry}`;
+}
+
+function addQueryParam(url, key, value) {
+  const target = new URL(String(url));
+  target.searchParams.set(String(key), String(value));
+  return target.toString();
+}
+
+function createStaticHandler({
+  getHeaders = async () => ({}),
+  refresh = async () => true,
+  isExpiring = () => false,
+  applyToRequest = async (request) => ({
+    ...ensureRequestShape(request),
+    headers: {
+      ...(ensureRequestShape(request).headers ?? {}),
+      ...(await getHeaders(request)),
+    },
+  }),
+}) {
+  return {
+    async init() {},
+    async getAuthHeaders(request) {
+      return getHeaders(request);
+    },
+    refresh,
+    isExpiring,
+    applyToRequest,
+    teardown() {},
+  };
+}
+
 export function createAuthHandler(config) {
   switch (config.type) {
-    case 'oauth2':   return createOAuth2Handler(config);
-    case 'jwt':      return createJwtHandler(config);
-    case 'digest':   return createDigestHandler(config);
+    case 'oauth2': return createOAuth2Handler(config);
+    case 'jwt': return createJwtHandler(config);
+    case 'digest': return createDigestHandler(config);
+    case 'basic': return createBasicHandler(config);
+    case 'bearer': return createBearerHandler(config);
+    case 'api-key': return createApiKeyHandler(config);
+    case 'cookie': return createCookieHandler(config);
     default:
       throw new AppError(400, `Unsupported auth type: ${config.type}`);
   }
 }
 
-// ─── OAuth2 handler ─────────────────────────────────────────────────────────
-
 function createOAuth2Handler(config) {
   const {
-    authorizeUrl,
     tokenUrl,
     clientId,
     clientSecret,
@@ -69,10 +123,14 @@ function createOAuth2Handler(config) {
     },
 
     async getAuthHeaders() {
-      if (!accessToken || Date.now() >= expiresAt - 30_000) {
+      if (!accessToken || this.isExpiring()) {
         await this.refresh();
       }
       return { Authorization: `${tokenType} ${accessToken}` };
+    },
+
+    isExpiring() {
+      return !accessToken || Date.now() >= expiresAt - 30_000;
     },
 
     async refresh() {
@@ -98,8 +156,7 @@ function createOAuth2Handler(config) {
       });
 
       if (!resp.ok) {
-        const text = await resp.text();
-        throw new AppError(resp.status, `OAuth2 token refresh failed: ${text}`);
+        throw new AppError(resp.status, `OAuth2 token refresh failed: ${await resp.text()}`);
       }
 
       const data = await resp.json();
@@ -108,6 +165,16 @@ function createOAuth2Handler(config) {
       tokenType = data.token_type ?? 'Bearer';
       expiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
       log.info('OAuth2 token refreshed', { expiresAt });
+      return true;
+    },
+
+    async applyToRequest(request = {}) {
+      const next = ensureRequestShape(request);
+      next.headers = {
+        ...next.headers,
+        ...(await this.getAuthHeaders()),
+      };
+      return next;
     },
 
     teardown() {
@@ -116,8 +183,6 @@ function createOAuth2Handler(config) {
     },
   };
 }
-
-// ─── JWT handler ─────────────────────────────────────────────────────────────
 
 function createJwtHandler(config) {
   const {
@@ -131,28 +196,36 @@ function createJwtHandler(config) {
     refreshBody,
     refreshHeaders,
     leewaySeconds = 30,
+    tokenPrefix = 'Bearer',
   } = config;
 
-  let token = null;
-  let expiresAt = 0;
+  let token = config.token ?? null;
+  let expiresAt = config.expiresIn ? Date.now() + config.expiresIn * 1000 : 0;
 
   return {
     async init() {
-      await this.refresh();
+      if (!token) {
+        await this.refresh();
+      }
       log.info('JWT handler initialized');
     },
 
+    isExpiring() {
+      return !token || Date.now() >= expiresAt - leewaySeconds * 1000;
+    },
+
     async getAuthHeaders() {
-      if (!token || Date.now() >= expiresAt - leewaySeconds * 1000) {
+      if (this.isExpiring()) {
         await this.refresh();
       }
-      return { Authorization: `Bearer ${token}` };
+      return { Authorization: `${tokenPrefix} ${token}` };
     },
 
     async refresh() {
-      const url = (!token && refreshUrl) ? acquireUrl : (refreshUrl ?? acquireUrl);
-      const reqBody = (!token && refreshBody) ? acquireBody : (refreshBody ?? acquireBody);
-      const reqHeaders = (!token && refreshHeaders) ? acquireHeaders : (refreshHeaders ?? acquireHeaders);
+      const useRefreshLane = Boolean(token) && Boolean(refreshUrl);
+      const url = useRefreshLane ? refreshUrl : acquireUrl;
+      const reqBody = useRefreshLane ? (refreshBody ?? acquireBody) : acquireBody;
+      const reqHeaders = useRefreshLane ? (refreshHeaders ?? acquireHeaders) : acquireHeaders;
 
       const resp = await fetch(url, {
         method,
@@ -161,24 +234,32 @@ function createJwtHandler(config) {
       });
 
       if (!resp.ok) {
-        const text = await resp.text();
-        throw new AppError(resp.status, `JWT acquire/refresh failed: ${text}`);
+        throw new AppError(resp.status, `JWT acquire/refresh failed: ${await resp.text()}`);
       }
 
       const data = await resp.json();
       token = resolvePath(data, tokenPath);
       const expiresIn = resolvePath(data, expiresInPath);
-      expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : Date.now() + 3600_000;
+      expiresAt = expiresIn ? Date.now() + Number(expiresIn) * 1000 : Date.now() + 3600_000;
       log.info('JWT token acquired/refreshed', { expiresAt });
+      return true;
+    },
+
+    async applyToRequest(request = {}) {
+      const next = ensureRequestShape(request);
+      next.headers = {
+        ...next.headers,
+        ...(await this.getAuthHeaders()),
+      };
+      return next;
     },
 
     teardown() {
       token = null;
+      expiresAt = 0;
     },
   };
 }
-
-// ─── Digest auth handler ─────────────────────────────────────────────────────
 
 function createDigestHandler(config) {
   const { username, password } = config;
@@ -189,19 +270,11 @@ function createDigestHandler(config) {
       log.info('Digest auth handler initialized', { username });
     },
 
-    /**
-     * Get authentication headers for a request.
-     *
-     * Note: For the first request to a Digest-protected URL, this method
-     * makes an initial unauthenticated request to obtain the challenge,
-     * then computes the Authorization header. Callers can avoid the
-     * double-request by passing the 401 response to preSeedChallenge().
-     *
-     * @param {string} url
-     * @param {string} [method='GET']
-     * @returns {Promise<object>}
-     */
     async getAuthHeaders(url, method = 'GET') {
+      if (!url) {
+        throw new AppError(400, 'Digest auth requires a request URL');
+      }
+
       if (!cachedChallenge) {
         const probeResp = await fetch(url, { method });
         const wwwAuth = probeResp.headers.get('www-authenticate');
@@ -209,28 +282,37 @@ function createDigestHandler(config) {
         cachedChallenge = parseDigestChallenge(wwwAuth);
       }
 
-      const authHeader = buildDigestResponse({
-        ...cachedChallenge,
-        username,
-        password,
-        uri: new URL(url).pathname,
-        method,
-      });
-      return { Authorization: authHeader };
+      return {
+        Authorization: buildDigestResponse({
+          ...cachedChallenge,
+          username,
+          password,
+          uri: new URL(url).pathname,
+          method,
+        }),
+      };
     },
 
-    /**
-     * Pre-seed the digest challenge from an existing 401 response,
-     * avoiding the double-request penalty.
-     *
-     * @param {string} wwwAuth - The WWW-Authenticate header value
-     */
     preSeedChallenge(wwwAuth) {
       cachedChallenge = parseDigestChallenge(wwwAuth);
     },
 
+    isExpiring() {
+      return false;
+    },
+
     refresh() {
       cachedChallenge = null;
+      return true;
+    },
+
+    async applyToRequest(request = {}) {
+      const next = ensureRequestShape(request);
+      next.headers = {
+        ...next.headers,
+        ...(await this.getAuthHeaders(next.url, next.method ?? 'GET')),
+      };
+      return next;
     },
 
     teardown() {
@@ -239,10 +321,101 @@ function createDigestHandler(config) {
   };
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+function createBasicHandler(config) {
+  const { username, password } = config;
+  if (username === undefined || password === undefined) {
+    throw new AppError(400, 'Basic auth requires username and password');
+  }
+
+  const token = Buffer.from(`${username}:${password}`).toString('base64');
+  return createStaticHandler({
+    getHeaders: async () => ({ Authorization: `Basic ${token}` }),
+  });
+}
+
+function createBearerHandler(config) {
+  const { token, prefix = 'Bearer', headerName = 'Authorization' } = config;
+  if (!token) {
+    throw new AppError(400, 'Bearer auth requires token');
+  }
+
+  return createStaticHandler({
+    getHeaders: async () => ({ [headerName]: `${prefix} ${token}`.trim() }),
+  });
+}
+
+function createApiKeyHandler(config) {
+  const {
+    key,
+    value,
+    in: location = 'header',
+    headerName = key ?? 'x-api-key',
+    queryParam = key ?? 'api_key',
+    cookieName = key ?? 'api_key',
+  } = config;
+
+  if (!value) {
+    throw new AppError(400, 'API key auth requires value');
+  }
+
+  return createStaticHandler({
+    getHeaders: async () => (
+      location === 'header'
+        ? { [headerName]: String(value) }
+        : location === 'cookie'
+          ? { Cookie: `${cookieName}=${value}` }
+          : {}
+    ),
+    applyToRequest: async (request = {}) => {
+      const next = ensureRequestShape(request);
+      if (location === 'query') {
+        next.url = addQueryParam(next.url, queryParam, value);
+        return next;
+      }
+      if (location === 'cookie') {
+        next.headers = setHeader(
+          next.headers,
+          'Cookie',
+          appendCookieHeader(next.headers.Cookie ?? next.headers.cookie ?? '', cookieName, value),
+        );
+        return next;
+      }
+      next.headers = setHeader(next.headers, headerName, String(value));
+      return next;
+    },
+  });
+}
+
+function createCookieHandler(config) {
+  const cookieMap = typeof config.cookie === 'string'
+    ? { raw: config.cookie }
+    : config.cookies ?? {};
+  const buildHeaders = async () => {
+    if (typeof cookieMap.raw === 'string') {
+      return { Cookie: cookieMap.raw };
+    }
+    const cookieHeader = Object.entries(cookieMap)
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; ');
+    return cookieHeader ? { Cookie: cookieHeader } : {};
+  };
+
+  return createStaticHandler({
+    getHeaders: buildHeaders,
+    applyToRequest: async (request = {}) => {
+      const next = ensureRequestShape(request);
+      const headers = await buildHeaders();
+      next.headers = {
+        ...next.headers,
+        ...headers,
+      };
+      return next;
+    },
+  });
+}
 
 async function performAuthorizationCodeFlow(config) {
-  const { authorizeUrl, clientId, redirectUri, scopes } = config;
+  const { authorizeUrl, clientId, redirectUri, scopes = [] } = config;
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
@@ -255,11 +428,10 @@ async function performAuthorizationCodeFlow(config) {
 
 function parseDigestChallenge(wwwAuth) {
   const challenge = {};
-  const match = wwwAuth.match(/Digest\s+(.+)/i);
+  const match = String(wwwAuth ?? '').match(/Digest\s+(.+)/i);
   if (!match) return challenge;
-  const parts = match[1];
-  for (const m of parts.matchAll(/(\w+)=(?:["]([^"]*)["]|([\w/]+))/g)) {
-    challenge[m[1]] = m[2] ?? m[3];
+  for (const item of match[1].matchAll(/(\w+)=(?:["]([^"]*)["]|([\w/]+))/g)) {
+    challenge[item[1]] = item[2] ?? item[3];
   }
   return challenge;
 }
@@ -277,8 +449,4 @@ function buildDigestResponse(params) {
 
 function md5Hex(str) {
   return createHash('md5').update(str).digest('hex');
-}
-
-function resolvePath(obj, path) {
-  return path.split('.').reduce((o, k) => o?.[k], obj);
 }

@@ -20,7 +20,6 @@ import { buildReplayWorkflowPatchTemplate } from "../runtime/replay-workflow.js"
 import { createWorkflowReverseRuntime } from "../runtime/reverse-workflow-runtime.js";
 import { buildMediaExtractRules } from "../extractors/media-extractor.js";
 import { getGlobalConfig } from "../utils/config.js";
-import { autoScroll } from "../fetchers/scroll-handler.js";
 import { extractShadowDom, extractIframes } from "../extractors/shadow-dom-extractor.js";
 import { createAuthHandler } from "../middleware/auth-handler.js";
 import { createIncrementalCrawlTracker } from "../runtime/incremental-crawl.js";
@@ -50,6 +49,7 @@ function normalizeSeedRequest(input) {
     method: input.method,
     headers: input.headers,
     body: input.body,
+    grpc: input.grpc,
     websocket: input.websocket,
     label: input.label ?? null,
     priority: input.priority,
@@ -631,7 +631,14 @@ export class OmniCrawler {
    * @returns {OmniCrawler}
    */
   useAutoScroll(opts = {}) {
-    this._autoScrollOpts = opts;
+    const config = {
+      enabled: true,
+      ...opts,
+    };
+    this._autoScrollOpts = config;
+    this.setBrowserOptions(mergePlainObjects(this._workflowOverrides.browser ?? {}, {
+      autoScroll: config,
+    }));
     return this;
   }
 
@@ -1008,19 +1015,6 @@ export class OmniCrawler {
       this._shutdown.install();
     }
 
-    // ── Auto-scroll plugin for infinite-scroll pages ────────────────────────
-    if (this._autoScrollOpts) {
-      this._runner.runtimePlugins.push({
-        name: 'omnicrawler-auto-scroll',
-        afterResponse: async ({ response }) => {
-          const page = response?._page ?? null;
-          if (page) {
-            await autoScroll(page, this._autoScrollOpts);
-          }
-        },
-      });
-    }
-
     // ── Deep extract plugin for Shadow DOM / iframes ────────────────────────
     if (this._deepExtractOpts) {
       this._runner.runtimePlugins.push({
@@ -1045,33 +1039,45 @@ export class OmniCrawler {
       });
     }
 
-    // ── Auth handler plugin for OAuth2/JWT/Digest ──────────────────────────
+    // ── Auth handler plugin for request authentication ─────────────────────
     if (this._authConfig) {
       try {
         const authHandler = createAuthHandler(this._authConfig);
         await authHandler.init();
-        const authHeaders = await authHandler.getAuthHeaders();
-        if (authHeaders) {
+        const initialHeaders = await authHandler.getAuthHeaders().catch(() => null);
+        if (initialHeaders && Object.keys(initialHeaders).length > 0) {
           this._workflowOverrides.headers = {
             ...(this._workflowOverrides.headers ?? {}),
-            ...authHeaders,
+            ...initialHeaders,
           };
         }
-        // Auto-refresh for JWT tokens
-        if (this._authConfig.type === 'jwt' && authHandler.refresh) {
-          this._runner.runtimePlugins.push({
-            name: 'omnicrawler-auth-refresh',
-            beforeRequest: async ({ request }) => {
-              if (authHandler.isExpiring && authHandler.isExpiring()) {
-                const refreshed = await authHandler.refresh();
-                if (refreshed) {
-                  const newHeaders = await authHandler.getAuthHeaders();
-                  request.headers = { ...(request.headers ?? {}), ...newHeaders };
-                }
+
+        this._runner.runtimePlugins.push({
+          name: 'omnicrawler-auth-apply',
+          beforeRequest: async ({ request }) => {
+            if (authHandler.isExpiring && authHandler.isExpiring()) {
+              await authHandler.refresh?.();
+            }
+
+            if (typeof authHandler.applyToRequest === 'function') {
+              const applied = await authHandler.applyToRequest(request);
+              request.url = applied.url ?? request.url;
+              request.headers = {
+                ...(request.headers ?? {}),
+                ...(applied.headers ?? {}),
+              };
+              if (applied.body !== undefined) {
+                request.body = applied.body;
               }
-            },
-          });
-        }
+              return;
+            }
+
+            const newHeaders = await authHandler.getAuthHeaders(request);
+            if (newHeaders) {
+              request.headers = { ...(request.headers ?? {}), ...newHeaders };
+            }
+          },
+        });
       } catch (err) {
         this._log.warn('Auth handler init failed', { error: err.message });
       }
