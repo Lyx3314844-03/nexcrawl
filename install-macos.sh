@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# NexCrawl / OmniCrawl macOS Installer
+# NexCrawl / NexCrawl macOS Installer
 # ============================================
 
 set -e

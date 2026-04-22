@@ -1,6 +1,6 @@
 @echo off
 REM ============================================
-REM NexCrawl / OmniCrawl Windows Installer
+REM NexCrawl / NexCrawl Windows Installer
 REM ============================================
 
 echo.

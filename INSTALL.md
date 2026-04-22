@@ -214,10 +214,10 @@ Optional environment variables for production:
 
 ```bash
 # API Key protection
-export OMNICRAWL_API_KEY=your-secret-api-key
+export NexCrawl_API_KEY=your-secret-api-key
 
 # Credential encryption
-export OMNICRAWL_VAULT_KEY=replace-with-long-random-secret
+export NexCrawl_VAULT_KEY=replace-with-long-random-secret
 ```
 
 ## Troubleshooting

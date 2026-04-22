@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="logo.svg" width="180" alt="OmniCrawl" />
+  <img src="logo.svg" width="180" alt="NexCrawl" />
 </p>
 
-# OmniCrawl / NexCrawl
+# NexCrawl
 
 面向 Web、API、协议和 App 场景的数据采集平台。
 

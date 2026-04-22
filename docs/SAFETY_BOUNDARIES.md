@@ -2,7 +2,7 @@
 
 ## 明确不做的事情
 
-OmniCrawl / NexCrawl 不提供以下能力：
+NexCrawl 不提供以下能力：
 
 - 绕过访问控制。
 - 伪造身份、设备信誉或 attestation token。
@@ -26,12 +26,12 @@ OmniCrawl / NexCrawl 不提供以下能力：
 - 尊重 robots.txt、服务条款和速率限制。
 - 不要绕过登录、付费墙或访问控制。
 - 对账号、代理、设备和凭证使用租户隔离。
-- 启用 `OMNICRAWL_VAULT_KEY` 加密凭证。
-- 定期审计 `.omnicrawl/audit.ndjson`。
+- 启用 `NexCrawl_VAULT_KEY` 加密凭证。
+- 定期审计 `.NexCrawl/audit.ndjson`。
 
 ## 生产部署建议
 
-- 为 HTTP API 配置 `OMNICRAWL_API_KEY`。
+- 为 HTTP API 配置 `NexCrawl_API_KEY`。
 - 使用反向代理加 TLS。
 - 使用最小权限账号。
 - 为不同租户配置不同账号池、代理池、设备池和配额。

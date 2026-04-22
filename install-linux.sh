@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# NexCrawl / OmniCrawl Linux Installer
+# NexCrawl / NexCrawl Linux Installer
 # ============================================
 
 set -e

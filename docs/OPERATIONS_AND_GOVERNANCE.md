@@ -5,7 +5,7 @@
 运行时状态默认保存在项目根目录：
 
 ```text
-.omnicrawl/
+.NexCrawl/
 ```
 
 常见文件：
@@ -112,7 +112,7 @@ curl -s http://127.0.0.1:3100/platform/governance/credentials \
 启用本地加密落盘：
 
 ```bash
-set OMNICRAWL_VAULT_KEY=replace-with-long-random-secret
+set NexCrawl_VAULT_KEY=replace-with-long-random-secret
 npm start
 ```
 
@@ -125,5 +125,5 @@ GET /platform/governance/audit
 POST /platform/governance/audit
 ```
 
-审计内容会写入 `.omnicrawl/audit.ndjson`，敏感字段会被脱敏。
+审计内容会写入 `.NexCrawl/audit.ndjson`，敏感字段会被脱敏。
 
